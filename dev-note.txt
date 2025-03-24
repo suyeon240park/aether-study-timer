@@ -1,0 +1,35 @@
+3/17/2025
+1. Build frontend using Next.js (timer, aethers, statistics, and settings).
+2. Integrate with Firebase Realtime Database and Google Authentification.
+
+3/19/2025
+Implement bar graphs to display total study time across various timeframes: hourly, daily, weekly, monthly, and yearly. Implement navigation buttons to move the range of days. Heatmap is below bar graphs.
+- Hourly View: Display study time for each hour of the day.
+- Daily View: Display the total study time of each day for one week (7 days).
+- Weekly View: Display the total study time of each week for one month (4 weeks). Show the start date of a week instead of "Week 1."
+- Monthly View: Display the total study time of each month for one year (12 months).
+- Yearly View: Display the total study time of each year for 5 years.
+- Streak is the number of consecutive days achieving the study goal. Fix calculation logic.
+- Time is flowing slower.
+- Add session complete sound.
+- Overlap multiple aether and session complete sound naturally.
+- Daily goal input should not be pre-selected when opening settings tab.
+- Move Account to the top before all other options.
+- Add number of aethers in database (currently, aether is calculated from total study time, but later, I will implement purchasable gamify elements. So you shouldn't calculate from total study time, but store and fetch aethers from database)
+- When time over, go back to the first set time. For example, if an user sets the timer to 50 minute before starting the timer, timer should be set to 50 minutes after finishing a study session.
+- Add tasks
+
+3/20/2025
+- Aether collection is fixed.
+- Progress bar is fixed.
+
+3. New update
+- Add pomodoro features
+- When time is under 1 min, the progress bar is just solid black.
+- Find a way to stop a timer in different tabs
+
+Future updates
+- Lack of vibrant color in Statistics dashboard. make it aesthetic.
+- Integrate Google Task where users can drag tasks into the tasks they are planning to finish during this study session. Tasks are sorted from oldest to newest (tell me if you have any better idea).
+- Integrate YouTube music on the bottom of the page. They can start, pause, and play next song. They can also play their selected songs (but idk how. can users search?)
+- For extra features like Google Task, Outlook to-do, YouTube music, and Spotify, users can toggle them on and off in the Settings.
