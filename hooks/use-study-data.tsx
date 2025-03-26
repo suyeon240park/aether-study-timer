@@ -11,7 +11,12 @@ const initialStudyData: StudyData = {
   sessions: [],
   dailyGoal: 5, // Default 5 hours
   aethers: 0, // Initialize aethers to 0
-  totalStudyTime: 0, // Initialize total study time to 0
+  totalStudyTime: {}, // Initialize empty record of daily totals
+}
+
+// Helper function to get date string in YYYY-MM-DD format
+const getDateString = (date: Date) => {
+  return date.toISOString().split('T')[0]
 }
 
 export function useStudyData() {
@@ -28,9 +33,12 @@ export function useStudyData() {
       if (savedData) {
         try {
           const parsedData = JSON.parse(savedData)
-          // Handle migration from old data format that didn't have aethers
+          // Handle migration from old data format
           if (!parsedData.hasOwnProperty("aethers")) {
             parsedData.aethers = 0
+          }
+          if (!parsedData.hasOwnProperty("totalStudyTime") || typeof parsedData.totalStudyTime !== 'object') {
+            parsedData.totalStudyTime = {}
           }
           setStudyData(parsedData)
         } catch (error) {
@@ -59,10 +67,8 @@ export function useStudyData() {
 
       if (firebaseData) {
         try {
-          // Convert Firebase data format to our app format
           const sessions: StudySession[] = []
 
-          // Process study sessions
           if (firebaseData.studySessions) {
             Object.entries(firebaseData.studySessions).forEach(([sessionId, session]: [string, any]) => {
               sessions.push({
@@ -73,12 +79,11 @@ export function useStudyData() {
             })
           }
 
-          // Set the data from Firebase
           setStudyData({
             sessions: [...sessions],
             dailyGoal: firebaseData.dailyGoal || initialStudyData.dailyGoal,
             aethers: firebaseData.aethers || 0,
-            totalStudyTime: firebaseData.totalStudyTime || sessions.reduce((sum, session) => sum + session.minutes, 0),
+            totalStudyTime: firebaseData.totalStudyTime || {},
           })
         } catch (error) {
           console.error("Error processing Firebase data:", error)
@@ -151,10 +156,20 @@ export function useStudyData() {
         timestamp: new Date().toISOString(),
       }
 
+      // Get the date string for the new session
+      const sessionDate = getDateString(new Date(newSession.timestamp))
+
+      // Calculate new total for this date
+      const currentTotal = studyData.totalStudyTime[sessionDate] || 0
+      const newTotal = currentTotal + minutes
+
       setStudyData((prev) => ({
         ...prev,
         sessions: [...prev.sessions, newSession],
-        totalStudyTime: prev.totalStudyTime + minutes,
+        totalStudyTime: {
+          ...prev.totalStudyTime,
+          [sessionDate]: newTotal,
+        },
       }))
 
       // Update Firebase
@@ -163,7 +178,7 @@ export function useStudyData() {
         minutes: newSession.minutes,
         timestamp: newSession.timestamp,
       })
-      await set(ref(database, `users/${user.uid}/totalStudyTime`), studyData.totalStudyTime + minutes)
+      await set(ref(database, `users/${user.uid}/totalStudyTime/${sessionDate}`), newTotal)
       setError(null)
     } catch (error) {
       console.error("Failed to add session:", error)

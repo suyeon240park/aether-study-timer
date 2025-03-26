@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useCallback, useMemo } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import type { StudyData } from "@/types/study"
@@ -21,11 +21,45 @@ import {
 } from "recharts"
 import ActivityHeatmap from "@/components/activity-heatmap"
 import { Clock, Flame, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Minus } from "lucide-react"
+import { format } from "date-fns"
+import { Line } from "react-chartjs-2"
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend,
+  ChartData,
+  ChartOptions,
+} from "chart.js"
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  Title,
+  ChartTooltip,
+  Legend
+)
 
 interface StatisticsDashboardProps {
   studyData: StudyData
   dailyGoal: number
   onGoalChange: (goal: number) => void
+}
+
+// Helper function to get date string in YYYY-MM-DD format
+const getDateString = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange }: StatisticsDashboardProps) {
@@ -41,6 +75,113 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
   const goForward = useCallback(() => {
     setTimeOffset((prev) => Math.max(0, prev - 1))
   }, [])
+
+  // Calculate total study time from all dates
+  const totalStudyTime = useMemo(() => {
+    return Object.values(studyData.totalStudyTime).reduce((sum, minutes) => sum + minutes, 0)
+  }, [studyData.totalStudyTime])
+
+  // Calculate today's study time
+  const todayStudyTime = useMemo(() => {
+    const today = getDateString(new Date())
+    return studyData.totalStudyTime[today] || 0
+  }, [studyData.totalStudyTime])
+
+  // Calculate weekly average study time
+  const weeklyAverageStudyTime = useMemo(() => {
+    const now = new Date()
+    const sevenDaysAgo = new Date(now)
+    sevenDaysAgo.setDate(now.getDate() - 7)
+
+    let totalMinutes = 0
+    let daysWithStudy = 0
+
+    for (let d = new Date(sevenDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
+      const dateStr = getDateString(d)
+      const minutes = studyData.totalStudyTime[dateStr] || 0
+      if (minutes > 0) daysWithStudy++
+      totalMinutes += minutes
+    }
+
+    return daysWithStudy > 0 ? Math.round(totalMinutes / daysWithStudy) : 0
+  }, [studyData.totalStudyTime])
+
+  // Calculate productivity trend (% change in weekly average)
+  const productivityTrend = useMemo(() => {
+    const now = new Date()
+    const twoWeeksAgo = new Date(now)
+    twoWeeksAgo.setDate(now.getDate() - 14)
+
+    // Last week's data
+    let lastWeekTotal = 0
+    let lastWeekDays = 0
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const dateStr = getDateString(d)
+      const minutes = studyData.totalStudyTime[dateStr] || 0
+      if (minutes > 0) lastWeekDays++
+      lastWeekTotal += minutes
+    }
+
+    // Previous week's data
+    let prevWeekTotal = 0
+    let prevWeekDays = 0
+    for (let i = 7; i < 14; i++) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const dateStr = getDateString(d)
+      const minutes = studyData.totalStudyTime[dateStr] || 0
+      if (minutes > 0) prevWeekDays++
+      prevWeekTotal += minutes
+    }
+
+    const lastWeekAvg = lastWeekDays > 0 ? lastWeekTotal / lastWeekDays : 0
+    const prevWeekAvg = prevWeekDays > 0 ? prevWeekTotal / prevWeekDays : 0
+
+    if (prevWeekAvg === 0) return lastWeekAvg > 0 ? 100 : 0
+    return Math.round(((lastWeekAvg - prevWeekAvg) / prevWeekAvg) * 100)
+  }, [studyData.totalStudyTime])
+
+  // Get hourly data for today
+  const hourlyData = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayStr = getDateString(today)
+
+    // Initialize hours array with 0 minutes
+    const hours = Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      formattedTime: format(new Date().setHours(i, 0, 0, 0), "h a"),
+      minutes: 0,
+      goal: dailyGoal * 60 / 24, // Distribute daily goal evenly across hours
+    }))
+
+    // Get today's sessions
+    const todaySessions = studyData.sessions.filter(session => {
+      const sessionDate = getDateString(new Date(session.timestamp))
+      return sessionDate === todayStr
+    })
+
+    // Distribute minutes across hours
+    todaySessions.forEach(session => {
+      const sessionDate = new Date(session.timestamp)
+      const startHour = sessionDate.getHours()
+      let remainingMinutes = session.minutes
+
+      let currentHour = startHour
+      while (remainingMinutes > 0 && currentHour < 24) {
+        // Calculate minutes to add to current hour
+        const minutesInHour = Math.min(remainingMinutes, 60 - sessionDate.getMinutes())
+        hours[currentHour].minutes += minutesInHour
+        remainingMinutes -= minutesInHour
+        currentHour++
+        sessionDate.setMinutes(0) // Reset minutes for next hour
+      }
+    })
+
+    return hours
+  }, [studyData.sessions, dailyGoal])
 
   // Memoize date-based session maps to avoid recalculation
   const dateToMinutesMap = useMemo(() => {
@@ -143,23 +284,6 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     }
   }, [studyData.sessions])
 
-  // Calculate productivity trend using 3-week moving average
-  const calculateProductivityTrend = useCallback(() => {
-    if (studyData.sessions.length === 0) return 0
-
-    const { movingAverages } = weeklyData
-    if (movingAverages.length < 2) return 0
-
-    const currentAverage = movingAverages[0]
-    const previousAverage = movingAverages[1]
-
-    if (previousAverage === 0) {
-      return currentAverage > 0 ? 100 : 0
-    }
-
-    return Math.round(((currentAverage - previousAverage) / previousAverage) * 100)
-  }, [weeklyData, studyData.sessions.length])
-
   // Calculate average weekly study time from the weekly data
   const calculateAverageWeeklyStudyTime = useCallback(() => {
     return weeklyData.averageMinutesPerWeek
@@ -168,7 +292,6 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
   // Memoize values that are used in the render
   const todayProgress = useMemo(() => calculateTodayProgress(), [calculateTodayProgress])
   const streak = useMemo(() => calculateStreak(), [calculateStreak])
-  const productivityTrend = useMemo(() => calculateProductivityTrend(), [calculateProductivityTrend])
   const averageWeeklyMinutes = useMemo(() => calculateAverageWeeklyStudyTime(), [calculateAverageWeeklyStudyTime])
 
   // Calculate best streak - the longest streak the user has ever achieved
@@ -238,86 +361,88 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
 
   // Get data for hourly view with offset
   const getHourlyData = () => {
+    // Get the current date in local time
     const now = new Date()
-    // Apply offset (each offset unit is 24 hours for hourly view)
-    now.setDate(now.getDate() - timeOffset)
-    now.setHours(0, 0, 0, 0) // Start at midnight
+    
+    // Apply offset and set to start of day in local time
+    const targetDate = new Date(now)
+    targetDate.setDate(targetDate.getDate() - timeOffset)
+    targetDate.setHours(0, 0, 0, 0)
 
+    // Initialize array for 24 hours in local time
     const hours = Array.from({ length: 24 }, (_, i) => {
-      const date = new Date(now)
-      date.setHours(i, 0, 0, 0) // Set to specific hour of the current day
-      return date
-    })
-
-    // Initialize hourly minutes
-    const hourlyMinutes: { [hour: number]: number } = {}
-    hours.forEach((hour) => {
-      hourlyMinutes[hour.getHours()] = 0
-    })
-
-    // Process each session and distribute minutes across hours
-    studyData.sessions.forEach((session) => {
-      const sessionTime = new Date(session.timestamp)
-      const sessionDay = new Date(sessionTime)
-      sessionDay.setHours(0, 0, 0, 0)
-
-      const offsetDay = new Date(now)
-      offsetDay.setHours(0, 0, 0, 0)
-
-      // Only include sessions from the specific day we're looking at
-      if (sessionDay.getTime() === offsetDay.getTime()) {
-        const startHour = sessionTime.getHours()
-        const startMinute = sessionTime.getMinutes()
-        let remainingMinutes = session.minutes
-        let currentHour = startHour
-
-        while (remainingMinutes > 0 && currentHour < 24) {
-          // For the first hour, consider the minutes within that hour
-          if (currentHour === startHour) {
-            const minutesInFirstHour = 60 - startMinute
-            const minutesToAdd = Math.min(remainingMinutes, minutesInFirstHour)
-            hourlyMinutes[currentHour] += minutesToAdd
-            remainingMinutes -= minutesToAdd
-          } else {
-            // For subsequent hours, add up to 60 minutes
-            const minutesToAdd = Math.min(remainingMinutes, 60)
-            hourlyMinutes[currentHour] += minutesToAdd
-            remainingMinutes -= minutesToAdd
-          }
-          currentHour++
-        }
+      const date = new Date(targetDate)
+      date.setHours(i)
+      return {
+        hour: i,
+        time: date.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }),
+        minutes: 0,
+        goal: dailyGoal * 60 / 24,
       }
     })
 
-    return hours.map((hour) => ({
-      hour: hour.getHours(),
-      time: hour.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }),
-      minutes: hourlyMinutes[hour.getHours()],
-      goal: (dailyGoal * 60) / 24, // Distribute daily goal across 24 hours
-    }))
+    // Get the date string for the target date in local timezone
+    const targetDateStr = getDateString(targetDate)
+
+    // Filter sessions for the target date in local time
+    const todaySessions = studyData.sessions.filter(session => {
+      // Convert UTC timestamp to local date string
+      const localDate = new Date(session.timestamp)
+      const sessionDateStr = getDateString(localDate)
+      console.log(sessionDateStr)
+      return sessionDateStr === targetDateStr
+    })
+
+    // Distribute minutes across hours in local time
+    todaySessions.forEach(session => {
+      const sessionDate = new Date(session.timestamp)
+      const startHour = sessionDate.getHours()
+      let remainingMinutes = session.minutes
+
+      let currentHour = startHour
+      while (remainingMinutes > 0 && currentHour < 24) {
+        // Calculate minutes to add to current hour
+        const minutesInHour = Math.min(remainingMinutes, 60 - sessionDate.getMinutes())
+        hours[currentHour].minutes += minutesInHour
+        remainingMinutes -= minutesInHour
+        currentHour++
+        sessionDate.setMinutes(0) // Reset minutes for next hour
+      }
+    })
+
+    return hours
   }
 
   // Get data for daily view with offset
   const getDailyData = () => {
-    const today = new Date()
+    const now = new Date()
     // Apply offset (each offset unit is 7 days for daily view)
-    today.setDate(today.getDate() - timeOffset * 7)
+    const targetDate = new Date(now)
+    targetDate.setDate(targetDate.getDate() - timeOffset * 7)
 
     const days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(today)
-      date.setDate(today.getDate() - 6 + i)
+      const date = new Date(targetDate)
+      date.setDate(targetDate.getDate() - 6 + i)
+      date.setHours(0, 0, 0, 0)
       return date
     })
 
     return days.map((date) => {
-      const dateStr = date.toISOString().split("T")[0]
-      const sessionsForDay = studyData.sessions.filter(
-        (session) => new Date(session.timestamp).toISOString().split("T")[0] === dateStr,
-      )
+      const dateStr = getDateString(date)
+      const nextDate = new Date(date)
+      nextDate.setDate(date.getDate() + 1)
+
+      // Filter sessions for this day in local time
+      const sessionsForDay = studyData.sessions.filter(session => {
+        const sessionDate = new Date(session.timestamp)
+        const sessionDateStr = getDateString(sessionDate)
+        return sessionDateStr === dateStr
+      })
+
       const totalMinutes = sessionsForDay.reduce((sum, session) => sum + session.minutes, 0)
 
       return {
-        date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        date: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
         fullDate: dateStr,
         minutes: totalMinutes,
         goal: dailyGoal * 60,
@@ -328,10 +453,8 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
   // Get data for weekly view with offset - weeks start on Sunday
   const getWeeklyData = () => {
     const now = new Date()
-
-    // Find the most recent Sunday
     const today = new Date(now)
-    const dayOfWeek = today.getDay() // 0 is Sunday, 1 is Monday, etc.
+    const dayOfWeek = today.getDay()
     const daysToSubtract = dayOfWeek
 
     // Start with the most recent Sunday
@@ -339,16 +462,18 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     mostRecentSunday.setDate(today.getDate() - daysToSubtract)
     mostRecentSunday.setHours(0, 0, 0, 0)
 
-    // Apply offset (each offset unit is 4 weeks for weekly view)
+    // Apply offset
     mostRecentSunday.setDate(mostRecentSunday.getDate() - timeOffset * 28)
 
     // Generate 4 consecutive weeks starting from Sunday
     const weeks = Array.from({ length: 4 }, (_, i) => {
       const weekStart = new Date(mostRecentSunday)
       weekStart.setDate(mostRecentSunday.getDate() - 21 + i * 7)
+      weekStart.setHours(0, 0, 0, 0)
 
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekStart.getDate() + 6)
+      weekEnd.setHours(23, 59, 59, 999)
 
       return {
         start: weekStart,
@@ -357,18 +482,20 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     })
 
     return weeks.map((week) => {
-      const startStr = week.start.toISOString().split("T")[0]
-      const endStr = week.end.toISOString().split("T")[0]
+      const startStr = getDateString(week.start)
+      const endStr = getDateString(week.end)
 
-      const sessionsForWeek = studyData.sessions.filter((session) => {
-        const sessionDate = new Date(session.timestamp).toISOString().split("T")[0]
-        return sessionDate >= startStr && sessionDate <= endStr
+      // Filter sessions within the week in local time
+      const sessionsForWeek = studyData.sessions.filter(session => {
+        const sessionDate = new Date(session.timestamp)
+        const sessionDateStr = getDateString(sessionDate)
+        return sessionDateStr >= startStr && sessionDateStr <= endStr
       })
 
       const totalMinutes = sessionsForWeek.reduce((sum, session) => sum + session.minutes, 0)
 
       return {
-        date: week.start.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        date: week.start.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
         startDate: startStr,
         endDate: endStr,
         minutes: totalMinutes,
@@ -379,12 +506,14 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
 
   // Get data for monthly view with offset
   const getMonthlyData = () => {
-    const today = new Date()
+    const now = new Date()
     // Apply offset (each offset unit is 12 months for monthly view)
-    today.setMonth(today.getMonth() - timeOffset * 12)
+    const targetDate = new Date(now)
+    targetDate.setMonth(targetDate.getMonth() - timeOffset * 12)
 
     const months = Array.from({ length: 12 }, (_, i) => {
-      const date = new Date(today.getFullYear(), today.getMonth() - 11 + i, 1)
+      const date = new Date(targetDate.getFullYear(), targetDate.getMonth() - 11 + i, 1)
+      date.setHours(0, 0, 0, 0)
       return date
     })
 
@@ -392,23 +521,27 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
       const month = monthDate.getMonth()
       const year = monthDate.getFullYear()
 
-      // Get the first and last day of the month
+      // Get the first and last day of the month in local time
       const firstDay = new Date(year, month, 1)
+      firstDay.setHours(0, 0, 0, 0)
       const lastDay = new Date(year, month + 1, 0)
+      lastDay.setHours(23, 59, 59, 999)
 
-      const firstDayStr = firstDay.toISOString().split("T")[0]
-      const lastDayStr = lastDay.toISOString().split("T")[0]
+      const firstDayStr = getDateString(firstDay)
+      const lastDayStr = getDateString(lastDay)
 
-      const sessionsForMonth = studyData.sessions.filter((session) => {
-        const sessionDate = new Date(session.timestamp).toISOString().split("T")[0]
-        return sessionDate >= firstDayStr && sessionDate <= lastDayStr
+      // Filter sessions within the month in local time
+      const sessionsForMonth = studyData.sessions.filter(session => {
+        const sessionDate = new Date(session.timestamp)
+        const sessionDateStr = getDateString(sessionDate)
+        return sessionDateStr >= firstDayStr && sessionDateStr <= lastDayStr
       })
 
       const totalMinutes = sessionsForMonth.reduce((sum, session) => sum + session.minutes, 0)
       const daysInMonth = lastDay.getDate()
 
       return {
-        date: monthDate.toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+        date: monthDate.toLocaleDateString(undefined, { month: "short", year: "numeric" }),
         month,
         year,
         minutes: totalMinutes,
@@ -473,46 +606,46 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
       case "hourly": {
         const offsetDate = new Date(now)
         offsetDate.setDate(offsetDate.getDate() - timeOffset)
-        return offsetDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+        return offsetDate.toLocaleDateString(undefined, { 
+          month: "long", 
+          day: "numeric", 
+          year: "numeric",
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone 
+        })
       }
       case "daily": {
         const startDate = new Date(now)
         startDate.setDate(startDate.getDate() - timeOffset * 7 - 6)
         const endDate = new Date(now)
         endDate.setDate(endDate.getDate() - timeOffset * 7)
-        return `${startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+        return `${startDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} - ${endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
       }
       case "weekly": {
-        // Find the most recent Sunday
         const today = new Date(now)
         const dayOfWeek = today.getDay()
         const daysToSubtract = dayOfWeek
 
-        // Start with the most recent Sunday
         const mostRecentSunday = new Date(today)
         mostRecentSunday.setDate(today.getDate() - daysToSubtract)
-
-        // Apply offset
         mostRecentSunday.setDate(mostRecentSunday.getDate() - timeOffset * 28)
 
-        // Calculate start and end dates
         const startDate = new Date(mostRecentSunday)
         startDate.setDate(mostRecentSunday.getDate() - 21)
 
         const endDate = new Date(mostRecentSunday)
         endDate.setDate(mostRecentSunday.getDate() + 6)
 
-        return `${startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+        return `${startDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })} - ${endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
       }
       case "monthly": {
         const startDate = new Date(now)
         startDate.setMonth(startDate.getMonth() - timeOffset * 12 - 11)
         const endDate = new Date(now)
         endDate.setMonth(endDate.getMonth() - timeOffset * 12)
-        return `${startDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })} - ${endDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
+        return `${startDate.toLocaleDateString(undefined, { month: "short", year: "numeric" })} - ${endDate.toLocaleDateString(undefined, { month: "short", year: "numeric" })}`
       }
       case "yearly": {
-        const currentYear = new Date().getFullYear()
+        const currentYear = now.getFullYear()
         const startYear = currentYear - 4 - timeOffset * 5
         const endYear = startYear + 4
         return `${startYear} - ${endYear}`

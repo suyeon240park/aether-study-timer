@@ -8,7 +8,7 @@ export interface StudyData {
   sessions: StudySession[]
   dailyGoal: number
   aethers: number
-  totalStudyTime: number // Total study time in minutes
+  totalStudyTime: Record<string, number> // Map of date strings (YYYY-MM-DD) to total minutes
 }
 
 export interface UserProfile {
