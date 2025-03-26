@@ -14,21 +14,19 @@ Implement bar graphs to display total study time across various timeframes: hour
 - Daily goal input should not be pre-selected when opening settings tab.
 - Move Account to the top before all other options.
 
-- When time is under 1 min, the progress bar is just solid black.
+3/24/2025
 - For the bar graph, add a light horizontal line indicating the study time goal.
 - Increase title sizes for Statistics, Settings, and Aethers.
 - Add number of aethers in database (currently, aether is calculated from total study time, but later, I will implement purchasable gamify elements. So you shouldn't calculate from total study time, but store and fetch aethers from database)
 - When time over, go back to the first set time. For example, if an user sets the timer to 50 minute before starting the timer, timer should be set to 50 minutes after finishing a study session.
-- When a study session finishes, notification pops on on the bottom-right side of the screen.
-
-3. New update
-- Aether sound is not playing
 - Add session complete sound
 - Overlap multiple aether and session complete sound naturally
-- Add pomodoro features
+- Integrate YouTube music on the bottom of the page. They can start, pause, and play next song. They can also add their selected videos.
 
 Future updates
-- Lack of vibrant color in Statistics dashboard. make it aesthetic.
+- Add pomodoro features
+- Add leaderboard
 - Integrate Google Task where users can drag tasks into the tasks they are planning to finish during this study session. Tasks are sorted from oldest to newest (tell me if you have any better idea).
-- Integrate YouTube music on the bottom of the page. They can start, pause, and play next song. They can also play their selected songs (but idk how. can users search?)
-- For extra features like Google Task, Outlook to-do, YouTube music, and Spotify, users can toggle them on and off in the Settings.
+- For extra features like Google Task and YouTube music, users can toggle them on and off in the Settings.
+- Make more themes and backgrounds and sell them.
+- Add premium features like Statistics, music, and to-do (think about it).

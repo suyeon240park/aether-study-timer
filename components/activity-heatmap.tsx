@@ -134,7 +134,7 @@ export default function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
               <span className="sr-only">Previous Year</span>
             </Button>
 
-            <div className="text-lg font-medium">Activity Heatmap ({year})</div>
+            <div className="text-lg font-medium">{year}</div>
 
             <Button
               variant="outline"

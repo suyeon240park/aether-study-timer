@@ -8,6 +8,7 @@ export interface StudyData {
   sessions: StudySession[]
   dailyGoal: number
   aethers: number
+  totalStudyTime: number // Total study time in minutes
 }
 
 export interface UserProfile {

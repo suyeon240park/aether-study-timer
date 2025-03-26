@@ -1,6 +1,30 @@
 {
-  /* Visit https://firebase.google.com/docs/database/security to learn more about security rules. */
   "rules": {
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+        
+        "studySessions": {
+          "$sessionId": {
+            ".validate": "newData.hasChildren(['timestamp', 'minutes'])",
+            "timestamp": { ".validate": "newData.isString()" },
+            "minutes": { ".validate": "newData.isNumber() && newData.val() > 0" }
+          }
+        },
+        "dailyGoal": {
+          ".validate": "newData.isNumber() && newData.val() > 0"
+        },
+        "aethers": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "totalStudyTime": {
+          "$date": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          }
+        }
+      }
+    },
     ".read": false,
     ".write": false
   }

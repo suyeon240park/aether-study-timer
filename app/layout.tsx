@@ -9,6 +9,49 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Study Timer",
   description: "A study timer application with statistics and rewards",
+  icons: {
+    icon: [
+      { url: "/favicon/favicon.ico" },
+      { url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon/android-chrome-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/favicon/android-chrome-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [
+      { url: "/favicon/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  openGraph: {
+    title: "Study Timer",
+    description: "A study timer application with statistics and rewards",
+    images: [
+      {
+        url: "/favicon/android-chrome-512x512.png",
+        width: 512,
+        height: 512,
+        alt: "Study Timer",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Study Timer",
+    description: "A study timer application with statistics and rewards",
+    images: ["/favicon/android-chrome-512x512.png"],
+  },
+  manifest: "/favicon/site.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Study Timer",
+  },
+}
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({
@@ -18,6 +61,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="theme-color" content="#000000" />
+      </head>
       <body className={inter.className}>
         <AuthProvider>{children}</AuthProvider>
       </body>

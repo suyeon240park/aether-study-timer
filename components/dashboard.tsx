@@ -1,17 +1,25 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Diamond, Settings, LogOut, LogIn } from "lucide-react"
+import { BarChart3, Diamond, Settings, LogOut, LogIn, Music } from "lucide-react"
 import Timer from "@/components/timer"
-import Rewards from "@/components/rewards"
-import AetherAnimation from "@/components/aether-animation"
 import LoginModal from "@/components/login-modal"
 import { useStudyData } from "@/hooks/use-study-data"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
 import StatisticsDialog from "@/components/statistics-dialog"
+import { useRouter } from "next/navigation"
+import TaskManager from "@/components/task-manager"
+import MusicLoader from "@/components/music-loader"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { Switch } from "@/components/ui/switch"
 
 // Helper function to play sounds
 const playSound = (src: string, delay: number = 0) => {
@@ -24,110 +32,192 @@ const playSound = (src: string, delay: number = 0) => {
 export default function Dashboard() {
   const { studyData, addSession, setGoal, dailyGoal, aethers, addAethers, syncWithFirebase } = useStudyData();
   const { user, signOut } = useAuth();
-
+  const router = useRouter();
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
-  const [showAetherAnimation, setShowAetherAnimation] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginReason, setLoginReason] = useState<"statistics" | "rewards" | "">("");
+  const [isMusicEnabled, setIsMusicEnabled] = useState(true);
 
-  const [aetherAnimationProps, setAetherAnimationProps] = useState({
-    startPosition: { x: 0, y: 0 },
-    endPosition: { x: 0, y: 0 },
-    aetherCount: 0,
-  });
+  // Timer state
+  const [timerMinutes, setTimerMinutes] = useState(25);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [isTimerActive, setIsTimerActive] = useState(false);
+  const [isTimerPaused, setIsTimerPaused] = useState(false);
+  const [timerElapsedTime, setTimerElapsedTime] = useState(0);
+  const [timerInitialTime, setTimerInitialTime] = useState({ minutes: 25, seconds: 0 });
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timerEndTimeRef = useRef<number | null>(null);
 
+  const [aetherButtonPulse, setAetherButtonPulse] = useState(false);
   const aetherButtonRef = useRef<HTMLButtonElement>(null);
   const timerRef = useRef<HTMLDivElement>(null);
 
+  const [currentAethers, setCurrentAethers] = useState(0);
+
+  useEffect(() => {
+    setCurrentAethers(aethers);
+  }, [aethers]);
+
+  // Timer effect
+  useEffect(() => {
+    if (isTimerActive && !isTimerPaused) {
+      if (!timerEndTimeRef.current) {
+        const totalSeconds = timerMinutes * 60 + timerSeconds;
+        timerEndTimeRef.current = Date.now() + totalSeconds * 1000;
+      }
+
+      timerIntervalRef.current = setInterval(() => {
+        const now = Date.now();
+        const remaining = Math.max(0, timerEndTimeRef.current! - now);
+        
+        const newMinutes = Math.floor(remaining / 1000 / 60);
+        const newSeconds = Math.floor((remaining / 1000) % 60);
+        
+        const newElapsedTime = Math.floor(
+          ((timerMinutes * 60 + timerSeconds) * 1000 - remaining) / 1000
+        );
+
+        if (remaining === 0) {
+          clearInterval(timerIntervalRef.current as NodeJS.Timeout);
+          setIsTimerActive(false);
+          timerEndTimeRef.current = null;
+          const totalMinutes = Math.floor(newElapsedTime / 60);
+          handleSessionComplete(totalMinutes);
+          // Reset to initial time when timer completes
+          setTimerMinutes(timerInitialTime.minutes);
+          setTimerSeconds(timerInitialTime.seconds);
+        } else {
+          setTimerMinutes(newMinutes);
+          setTimerSeconds(newSeconds);
+          setTimerElapsedTime(newElapsedTime);
+        }
+      }, 100);
+    }
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
+  }, [isTimerActive, isTimerPaused]);
+
+  // Timer handlers
+  const handleTimerStart = () => {
+    if (!isTimerActive) {
+      setSessionStartTime(Date.now());
+      setTimerElapsedTime(0);
+      timerEndTimeRef.current = null;
+    }
+    setIsTimerActive(true);
+    setIsTimerPaused(false);
+  };
+
+  const handleTimerPause = () => {
+    setIsTimerPaused(true);
+    timerEndTimeRef.current = null;
+  };
+
+  const handleTimerReset = () => {
+    clearInterval(timerIntervalRef.current as NodeJS.Timeout);
+    setIsTimerActive(false);
+    setIsTimerPaused(false);
+    setTimerMinutes(timerInitialTime.minutes);
+    setTimerSeconds(timerInitialTime.seconds);
+    setTimerElapsedTime(0);
+    timerEndTimeRef.current = null;
+
+    if (sessionStartTime && timerElapsedTime > 0) {
+      const totalMinutes = Math.floor(timerElapsedTime / 60);
+      if (totalMinutes > 0) {
+        handleSessionComplete(totalMinutes);
+      }
+    }
+    setSessionStartTime(null);
+  };
+
+  const handleTimerTimeChange = (minutes: number, seconds: number) => {
+    setTimerMinutes(minutes);
+    setTimerSeconds(seconds);
+    setTimerInitialTime({ minutes, seconds });
+  };
+
   // Handle session completion with aether animation and sounds
   const handleSessionComplete = async (minutes: number) => {
-    // Play session end sound immediately
+    // Play session end sound and wait for it to finish (approximately 1 second)
     playSound("/sounds/session-end.mp3");
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // First, add the session to the data
     await addSession(minutes);
 
     // Calculate if new aethers were earned
-    const aethersEarned = Math.floor(minutes / 30);
+    const aethersEarned = Math.floor((minutes + calculateMinutesForNextAether()) / 30);
 
     if (aethersEarned > 0) {
       // Add aethers to the database
       await addAethers(aethersEarned);
 
-      // Use requestAnimationFrame to ensure DOM updates are complete
-      requestAnimationFrame(() => {
-        if (timerRef.current && aetherButtonRef.current) {
-          const timerRect = timerRef.current.getBoundingClientRect();
-          const aetherButtonRect = aetherButtonRef.current.getBoundingClientRect();
+      // Play overlapping aether collect sounds rapidly
+      for (let i = 0; i < aethersEarned; i++) {
+        playSound("/sounds/aether-collect.mp3", 800 + i * 400); // Play sounds with 400ms overlap
+      }
 
-          setAetherAnimationProps({
-            startPosition: {
-              x: timerRect.left + timerRect.width / 2,
-              y: timerRect.top + timerRect.height / 2,
-            },
-            endPosition: {
-              x: aetherButtonRect.left + aetherButtonRect.width / 2,
-              y: aetherButtonRect.top + aetherButtonRect.height / 2,
-            },
-            aetherCount: aethersEarned,
-          });
-
-          // Trigger animation after positions are set
-          setShowAetherAnimation(true);
-
-          // Play aether collect sounds with natural overlap
-          for (let i = 0; i < aethersEarned; i++) {
-            playSound("/sounds/aether-collect.mp3", 500 + i * 200);
-          }
-        }
-      });
+      // Animate each aether earned sequentially
+      for (let i = 0; i < aethersEarned; i++) {
+        // Wait for previous animation to complete
+        await new Promise<void>((resolve) => {
+          setTimeout(() => {
+            // Update the displayed aether count
+            setCurrentAethers(prev => prev + 1);
+            
+            // Trigger pulse animation
+            setAetherButtonPulse(true);
+            
+            // Reset pulse after animation
+            setTimeout(() => {
+              setAetherButtonPulse(false);
+              resolve();
+            }, 200);
+          }, i === 0 ? 800 : 200); // Start first animation at 800ms, then space others out by 200ms
+        });
+      }
     }
   };
 
-  // Pulse animation for aether button when new aethers are added
-  const [aetherButtonPulse, setAetherButtonPulse] = useState(false);
+  // Calculate minutes collected for the next aether
+  const calculateMinutesForNextAether = () => {
+    // Get total minutes from completed sessions
+    const completedMinutes = studyData.sessions.reduce((acc: number, session: { minutes: number }) => acc + session.minutes, 0);
+    
+    // Add current session's elapsed time if timer is active
+    const currentSessionMinutes = isTimerActive ? Math.floor(timerElapsedTime / 60) : 0;
+    const totalMinutes = completedMinutes + currentSessionMinutes;
+    
+    // Calculate minutes in current block (0-29)
+    return totalMinutes % 30;
+  };
 
-  useEffect(() => {
-    if (showAetherAnimation) {
-      // Prepare for pulse animation when aethers arrive
-      setTimeout(() => {
-        setAetherButtonPulse(true);
-
-        // Reset pulse after animation
-        setTimeout(() => {
-          setAetherButtonPulse(false);
-        }, 1000);
-      }, 1500); // Time for aethers to arrive
-    }
-  }, [showAetherAnimation]);
-
-  // Handle opening statistics or rewards when not logged in
-  const handleOpenFeature = (feature: "statistics" | "rewards") => {
+  // Handle opening statistics when not logged in
+  const handleOpenStatistics = () => {
     if (!user) {
-      setLoginReason(feature);
+      setLoginReason("statistics");
       setLoginModalOpen(true);
       return;
     }
 
-    // User is logged in, sync data and open the feature
+    // User is logged in, sync data and open statistics
     syncWithFirebase();
-
-    if (feature === "statistics") {
-      setStatsOpen(true);
-    } else {
-      setActiveSheet("rewards");
-    }
+    setStatsOpen(true);
   };
 
   // Handle successful login
   useEffect(() => {
     if (user && loginReason) {
-      // User just logged in, open the feature they were trying to access
+      // User just logged in, open statistics if that's what they were trying to access
       if (loginReason === "statistics") {
         setStatsOpen(true);
-      } else if (loginReason === "rewards") {
-        setActiveSheet("rewards");
       }
       setLoginReason("");
     }
@@ -137,43 +227,36 @@ export default function Dashboard() {
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top navigation bar */}
       <header className="flex items-center justify-between p-4 border-b">
-        <h1 className="text-2xl font-bold">Focus Timer</h1>
+        <h1 className="text-2xl font-bold">Aether Timer</h1>
 
         <div className="flex items-center gap-2">
-          {/* Aethers (Rewards) Button */}
-          <Sheet
-            open={activeSheet === "rewards"}
-            onOpenChange={(open) => (open ? handleOpenFeature("rewards") : setActiveSheet(null))}
-          >
-            <SheetTrigger asChild>
-              <Button
-                ref={aetherButtonRef}
-                variant="ghost"
-                size="icon"
-                className={cn("relative transition-all duration-300", aetherButtonPulse && "animate-pulse scale-110")}
-                onClick={() => handleOpenFeature("rewards")}
-              >
-                <Diamond className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                  {aethers}
-                </span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-              <SheetTitle>Aethers</SheetTitle>
-              <Rewards studyData={studyData} />
-            </SheetContent>
-          </Sheet>
+          {/* Aethers (Rewards) Button with Tooltip */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  ref={aetherButtonRef}
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "relative transition-all duration-1000",
+                    aetherButtonPulse && "animate-single-pulse"
+                  )}
+                >
+                  <Diamond className="h-5 w-5" />
+                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                    {currentAethers}
+                  </span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{calculateMinutesForNextAether()}/30 min to next aether</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           {/* Statistics Button */}
-          <StatisticsDialog
-            open={statsOpen}
-            onOpenChange={(open) => (open ? handleOpenFeature("statistics") : setStatsOpen(false))}
-            studyData={studyData}
-            dailyGoal={dailyGoal}
-            onGoalChange={setGoal}
-          />
-          <Button variant="ghost" size="icon" onClick={() => handleOpenFeature("statistics")}>
+          <Button variant="ghost" size="icon" onClick={handleOpenStatistics}>
             <BarChart3 className="h-5 w-5" />
           </Button>
 
@@ -185,7 +268,10 @@ export default function Dashboard() {
               </Button>
             </SheetTrigger>
             <SheetContent className="w-full sm:max-w-md">
-              <SheetTitle>Settings</SheetTitle>
+              <SheetTitle className="text-3xl font-bold">Settings</SheetTitle>
+              <SheetDescription>
+                Customize your study experience and manage your account
+              </SheetDescription>
               <div className="space-y-6 pt-6">
                 <div className="space-y-4">
                   {/* Authentication Section */}
@@ -238,6 +324,20 @@ export default function Dashboard() {
                       <span className="text-sm text-muted-foreground">hours</span>
                     </div>
                   </div>
+
+                  {/* Music Toggle - Moved to bottom */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <h4 className="text-sm font-medium">Background Music</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Enable study music playlist
+                      </p>
+                    </div>
+                    <Switch
+                      checked={isMusicEnabled}
+                      onCheckedChange={setIsMusicEnabled}
+                    />
+                  </div>
                 </div>
               </div>
             </SheetContent>
@@ -246,19 +346,41 @@ export default function Dashboard() {
       </header>
 
       {/* Main content - Timer */}
-      <div ref={timerRef} className="flex-1 flex items-center justify-center p-4">
-        <Timer onSessionComplete={handleSessionComplete} />
+      <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-y-auto">
+        <div ref={timerRef}>
+          <Timer
+            onSessionComplete={handleSessionComplete}
+            minutes={timerMinutes}
+            seconds={timerSeconds}
+            isActive={isTimerActive}
+            isPaused={isTimerPaused}
+            elapsedTime={timerElapsedTime}
+            initialTime={timerInitialTime}
+            onStart={handleTimerStart}
+            onPause={handleTimerPause}
+            onReset={handleTimerReset}
+            onTimeChange={handleTimerTimeChange}
+          />
+        </div>
+        <div className="mt-8 max-w-md w-full mx-auto">
+          <TaskManager />
+        </div>
       </div>
 
-      {/* Aether animation */}
-      {showAetherAnimation && (
-        <AetherAnimation
-          startPosition={aetherAnimationProps.startPosition}
-          endPosition={aetherAnimationProps.endPosition}
-          aetherCount={aetherAnimationProps.aetherCount}
-          onComplete={() => setShowAetherAnimation(false)}
-        />
-      )}
+      {/* Music Dropdown List */}
+      <MusicLoader isEnabled={isMusicEnabled} />
+
+      {/* Statistics Dialog */}
+      <StatisticsDialog
+        open={statsOpen}
+        onOpenChange={setStatsOpen}
+        studyData={studyData}
+        dailyGoal={dailyGoal}
+        onGoalChange={setGoal}
+      />
+
+      {/* Login Modal */}
+      <LoginModal open={loginModalOpen} onOpenChange={setLoginModalOpen} />
     </div>
   );
 }

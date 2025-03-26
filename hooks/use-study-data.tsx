@@ -11,6 +11,7 @@ const initialStudyData: StudyData = {
   sessions: [],
   dailyGoal: 5, // Default 5 hours
   aethers: 0, // Initialize aethers to 0
+  totalStudyTime: 0, // Initialize total study time to 0
 }
 
 export function useStudyData() {
@@ -18,6 +19,7 @@ export function useStudyData() {
   const [studyData, setStudyData] = useState<StudyData>(initialStudyData)
   const [isLoaded, setIsLoaded] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Load data from localStorage on component mount
   useEffect(() => {
@@ -33,6 +35,7 @@ export function useStudyData() {
           setStudyData(parsedData)
         } catch (error) {
           console.error("Failed to parse saved data:", error)
+          setError("Failed to load saved data")
         }
       }
       setIsLoaded(true)
@@ -49,36 +52,47 @@ export function useStudyData() {
 
     // First, check if user has data in Firebase
     setIsSyncing(true)
+    setError(null)
 
     const unsubscribe = onValue(userRef, (snapshot) => {
       const firebaseData = snapshot.val()
 
       if (firebaseData) {
-        // Convert Firebase data format to our app format
-        const sessions: StudySession[] = []
+        try {
+          // Convert Firebase data format to our app format
+          const sessions: StudySession[] = []
 
-        // Process study sessions
-        if (firebaseData.studySessions) {
-          Object.values(firebaseData.studySessions).forEach((session: any) => {
-            sessions.push({
-              id: session.id,
-              minutes: session.duration,
-              timestamp: new Date(`${session.date}T${session.start}`).toISOString(),
+          // Process study sessions
+          if (firebaseData.studySessions) {
+            Object.entries(firebaseData.studySessions).forEach(([sessionId, session]: [string, any]) => {
+              sessions.push({
+                id: sessionId,
+                minutes: session.minutes,
+                timestamp: session.timestamp,
+              })
             })
-          })
-        }
+          }
 
-        // Set the data from Firebase
-        setStudyData((prevData) => ({
-          sessions: [...sessions],
-          dailyGoal: firebaseData.dailyGoal || prevData.dailyGoal,
-          aethers: firebaseData.aethers || 0, // Get aethers from Firebase or default to 0
-        }))
+          // Set the data from Firebase
+          setStudyData({
+            sessions: [...sessions],
+            dailyGoal: firebaseData.dailyGoal || initialStudyData.dailyGoal,
+            aethers: firebaseData.aethers || 0,
+            totalStudyTime: firebaseData.totalStudyTime || sessions.reduce((sum, session) => sum + session.minutes, 0),
+          })
+        } catch (error) {
+          console.error("Error processing Firebase data:", error)
+          setError("Failed to process data from server")
+        }
       } else {
         // If no data in Firebase, upload local data
         syncLocalToFirebase()
       }
 
+      setIsSyncing(false)
+    }, (error) => {
+      console.error("Firebase sync error:", error)
+      setError("Failed to sync with server")
       setIsSyncing(false)
     })
 
@@ -88,60 +102,49 @@ export function useStudyData() {
   // Save data to localStorage whenever it changes
   useEffect(() => {
     if (isLoaded && !isSyncing) {
-      localStorage.setItem("study-timer-data", JSON.stringify(studyData))
+      try {
+        localStorage.setItem("study-timer-data", JSON.stringify(studyData))
+      } catch (error) {
+        console.error("Failed to save to localStorage:", error)
+        setError("Failed to save data locally")
+      }
     }
   }, [studyData, isLoaded, isSyncing])
 
   // Sync local data to Firebase
-  const syncLocalToFirebase = useCallback(() => {
+  const syncLocalToFirebase = useCallback(async () => {
     if (!user || !isLoaded) return
 
-    const userRef = ref(database, `users/${user.uid}`)
+    try {
+      const userRef = ref(database, `users/${user.uid}`)
 
-    // Convert sessions to Firebase format
-    const studySessions: Record<string, any> = {}
-    const totalStudyTime: Record<string, number> = {}
-
-    studyData.sessions.forEach((session) => {
-      const date = new Date(session.timestamp).toISOString().split("T")[0]
-      const time = new Date(session.timestamp).toTimeString().split(" ")[0].substring(0, 5)
-
-      // Calculate end time
-      const endDate = new Date(session.timestamp)
-      endDate.setMinutes(endDate.getMinutes() + session.minutes)
-      const endTime = endDate.toTimeString().split(" ")[0].substring(0, 5)
-
-      // Add to study sessions
-      const sessionKey = `${date}_${time}`
-      studySessions[sessionKey] = {
-        id: session.id,
-        date,
-        start: time,
-        end: endTime,
-        duration: session.minutes,
+      // Convert app format to Firebase format
+      const firebaseData = {
+        studySessions: studyData.sessions.reduce((acc, session) => {
+          acc[session.id] = {
+            minutes: session.minutes,
+            timestamp: session.timestamp,
+          }
+          return acc
+        }, {} as Record<string, { minutes: number; timestamp: string }>),
+        dailyGoal: studyData.dailyGoal,
+        aethers: studyData.aethers,
+        totalStudyTime: studyData.totalStudyTime,
       }
 
-      // Add to daily totals
-      if (!totalStudyTime[date]) {
-        totalStudyTime[date] = 0
-      }
-      totalStudyTime[date] += session.minutes
-    })
-
-    // Update Firebase
-    set(userRef, {
-      studySessions,
-      totalStudyTime,
-      dailyGoal: studyData.dailyGoal,
-      aethers: studyData.aethers, // Save aethers to Firebase
-    })
+      await set(userRef, firebaseData)
+      setError(null)
+    } catch (error) {
+      console.error("Failed to sync with Firebase:", error)
+      setError("Failed to save data to server")
+    }
   }, [user, studyData, isLoaded])
 
   // Add a new study session
-  const addSession = useCallback(
-    (minutes: number) => {
-      if (minutes <= 0) return
+  const addSession = useCallback(async (minutes: number) => {
+    if (!user || minutes <= 0) return
 
+    try {
       const newSession: StudySession = {
         id: Date.now().toString(),
         minutes,
@@ -151,118 +154,74 @@ export function useStudyData() {
       setStudyData((prev) => ({
         ...prev,
         sessions: [...prev.sessions, newSession],
+        totalStudyTime: prev.totalStudyTime + minutes,
       }))
 
-      // If user is logged in, also add to Firebase directly
-      if (user) {
-        const date = new Date().toISOString().split("T")[0]
-        const time = new Date().toTimeString().split(" ")[0].substring(0, 5)
+      // Update Firebase
+      const userRef = ref(database, `users/${user.uid}`)
+      await set(ref(database, `users/${user.uid}/studySessions/${newSession.id}`), {
+        minutes: newSession.minutes,
+        timestamp: newSession.timestamp,
+      })
+      await set(ref(database, `users/${user.uid}/totalStudyTime`), studyData.totalStudyTime + minutes)
+      setError(null)
+    } catch (error) {
+      console.error("Failed to add session:", error)
+      setError("Failed to save session")
+    }
+  }, [user, studyData.totalStudyTime])
 
-        // Calculate end time
-        const endDate = new Date()
-        endDate.setMinutes(endDate.getMinutes() + minutes)
-        const endTime = endDate.toTimeString().split(" ")[0].substring(0, 5)
+  // Update daily goal
+  const setGoal = useCallback(async (goal: number) => {
+    if (!user || goal <= 0) return
 
-        // Add session to Firebase
-        const sessionRef = ref(database, `users/${user.uid}/studySessions/${date}_${time}`)
-        set(sessionRef, {
-          id: newSession.id,
-          date,
-          start: time,
-          end: endTime,
-          duration: minutes,
-        })
+    try {
+      setStudyData((prev) => ({
+        ...prev,
+        dailyGoal: goal,
+      }))
 
-        // Update daily total
-        const totalRef = ref(database, `users/${user.uid}/totalStudyTime/${date}`)
-        get(totalRef).then((snapshot) => {
-          const currentTotal = snapshot.exists() ? snapshot.val() : 0
-          set(totalRef, currentTotal + minutes)
-        })
-      }
-    },
-    [user],
-  )
+      // Update Firebase
+      const userRef = ref(database, `users/${user.uid}/dailyGoal`)
+      await set(userRef, goal)
+      setError(null)
+    } catch (error) {
+      console.error("Failed to update goal:", error)
+      setError("Failed to update goal")
+    }
+  }, [user])
 
   // Add aethers
-  const addAethers = useCallback(
-    (amount: number) => {
-      if (amount <= 0) return
+  const addAethers = useCallback(async (amount: number) => {
+    if (!user || amount <= 0) return
 
+    try {
+      const newAethers = studyData.aethers + amount
       setStudyData((prev) => ({
         ...prev,
-        aethers: prev.aethers + amount,
+        aethers: newAethers,
       }))
 
-      // Update aethers in Firebase if user is logged in
-      if (user) {
-        const aethersRef = ref(database, `users/${user.uid}/aethers`)
-        get(aethersRef).then((snapshot) => {
-          const currentAethers = snapshot.exists() ? snapshot.val() : 0
-          set(aethersRef, currentAethers + amount)
-        })
-      }
-    },
-    [user],
-  )
-
-  // Remove aethers (for purchases)
-  const removeAethers = useCallback(
-    (amount: number) => {
-      if (amount <= 0) return
-      if (studyData.aethers < amount) return false // Not enough aethers
-
-      setStudyData((prev) => ({
-        ...prev,
-        aethers: prev.aethers - amount,
-      }))
-
-      // Update aethers in Firebase if user is logged in
-      if (user) {
-        const aethersRef = ref(database, `users/${user.uid}/aethers`)
-        set(aethersRef, studyData.aethers - amount)
-      }
-
-      return true // Successfully removed aethers
-    },
-    [user, studyData.aethers],
-  )
-
-  // Set daily goal (in hours)
-  const setGoal = useCallback(
-    (hours: number) => {
-      setStudyData((prev) => ({
-        ...prev,
-        dailyGoal: hours,
-      }))
-
-      // Update goal in Firebase if user is logged in
-      if (user) {
-        const goalRef = ref(database, `users/${user.uid}/dailyGoal`)
-        set(goalRef, hours)
-      }
-    },
-    [user],
-  )
-
-  // Force sync with Firebase
-  const syncWithFirebase = useCallback(() => {
-    if (user) {
-      syncLocalToFirebase()
+      // Update Firebase
+      const userRef = ref(database, `users/${user.uid}/aethers`)
+      await set(userRef, newAethers)
+      setError(null)
+    } catch (error) {
+      console.error("Failed to add aethers:", error)
+      setError("Failed to update aethers")
     }
-  }, [user, syncLocalToFirebase])
+  }, [user, studyData.aethers])
 
   return {
     studyData,
     addSession,
     setGoal,
+    addAethers,
+    syncWithFirebase: syncLocalToFirebase,
     dailyGoal: studyData.dailyGoal,
     aethers: studyData.aethers,
-    addAethers,
-    removeAethers,
-    isLoaded,
+    error,
     isSyncing,
-    syncWithFirebase,
   }
 }
 

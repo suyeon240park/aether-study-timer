@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
@@ -20,7 +20,7 @@ import {
   Cell,
 } from "recharts"
 import ActivityHeatmap from "@/components/activity-heatmap"
-import { Clock, Flame, ChevronLeft, ChevronRight } from "lucide-react"
+import { Clock, Flame, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Minus } from "lucide-react"
 
 interface StatisticsDashboardProps {
   studyData: StudyData
@@ -42,13 +42,138 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     setTimeOffset((prev) => Math.max(0, prev - 1))
   }, [])
 
-  // Calculate streak - fixed to count consecutive days meeting the goal
-  const calculateStreak = () => {
+  // Memoize date-based session maps to avoid recalculation
+  const dateToMinutesMap = useMemo(() => {
+    const map: Record<string, number> = {}
+    studyData.sessions.forEach((session) => {
+      const sessionDate = new Date(session.timestamp)
+      const dateKey = sessionDate.toISOString().split("T")[0]
+      map[dateKey] = (map[dateKey] || 0) + session.minutes
+    })
+    return map
+  }, [studyData.sessions])
+
+  // Calculate streak using memoized date map
+  const calculateStreak = useCallback(() => {
     if (studyData.sessions.length === 0) return 0
 
-    // Get today's date at midnight
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+    const todayKey = today.toISOString().split("T")[0]
+    const hasActivityToday = dateToMinutesMap[todayKey] !== undefined
+
+    let streak = 0
+    const currentDate = new Date(today)
+    if (!hasActivityToday) {
+      currentDate.setDate(currentDate.getDate() - 1)
+    }
+
+    while (true) {
+      const dateKey = currentDate.toISOString().split("T")[0]
+      const minutesStudied = dateToMinutesMap[dateKey] || 0
+
+      if (minutesStudied >= dailyGoal * 60) {
+        streak++
+        currentDate.setDate(currentDate.getDate() - 1)
+      } else {
+        break
+      }
+    }
+
+    return streak
+  }, [dateToMinutesMap, dailyGoal, studyData.sessions.length])
+
+  // Calculate today's progress using memoized date map
+  const calculateTodayProgress = useCallback(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayKey = today.toISOString().split("T")[0]
+    const totalMinutes = dateToMinutesMap[todayKey] || 0
+    const goalMinutes = dailyGoal * 60
+
+    return {
+      minutes: totalMinutes,
+      percentage: Math.min(100, Math.round((totalMinutes / goalMinutes) * 100)),
+      goalMinutes,
+    }
+  }, [dateToMinutesMap, dailyGoal])
+
+  // Memoize weekly data to avoid recalculation
+  const weeklyData = useMemo(() => {
+    const today = new Date()
+    const dayOfWeek = today.getDay()
+    const startOfCurrentWeek = new Date(today)
+    startOfCurrentWeek.setDate(today.getDate() - dayOfWeek)
+    startOfCurrentWeek.setHours(0, 0, 0, 0)
+
+    // Get data for the last 6 weeks (current week + 5 previous)
+    const weeks: { start: Date; end: Date }[] = []
+    for (let i = 0; i < 6; i++) {
+      const weekStart = new Date(startOfCurrentWeek)
+      weekStart.setDate(weekStart.getDate() - (i * 7))
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekStart.getDate() + 6)
+      weekEnd.setHours(23, 59, 59, 999)
+      weeks.push({ start: weekStart, end: weekEnd })
+    }
+
+    // Calculate minutes for each week
+    const weeklyMinutes = weeks.map(week => {
+      const sessionsInWeek = studyData.sessions.filter(session => {
+        const sessionDate = new Date(session.timestamp)
+        return sessionDate >= week.start && sessionDate <= week.end
+      })
+      return sessionsInWeek.reduce((sum, session) => sum + session.minutes, 0)
+    })
+
+    // Calculate moving averages
+    const movingAverages = weeklyMinutes.slice(1).map((_, index) => {
+      const threeWeekSum = weeklyMinutes.slice(index, index + 3).reduce((sum, min) => sum + min, 0)
+      return Math.round(threeWeekSum / 3)
+    })
+
+    return {
+      currentWeekMinutes: weeklyMinutes[0],
+      previousWeekMinutes: weeklyMinutes[1],
+      weeklyMinutes,
+      movingAverages,
+      averageMinutesPerWeek: Math.round(
+        weeklyMinutes.slice(1, 5).reduce((sum, min) => sum + min, 0) / 4
+      ), // Average of last 4 complete weeks
+    }
+  }, [studyData.sessions])
+
+  // Calculate productivity trend using 3-week moving average
+  const calculateProductivityTrend = useCallback(() => {
+    if (studyData.sessions.length === 0) return 0
+
+    const { movingAverages } = weeklyData
+    if (movingAverages.length < 2) return 0
+
+    const currentAverage = movingAverages[0]
+    const previousAverage = movingAverages[1]
+
+    if (previousAverage === 0) {
+      return currentAverage > 0 ? 100 : 0
+    }
+
+    return Math.round(((currentAverage - previousAverage) / previousAverage) * 100)
+  }, [weeklyData, studyData.sessions.length])
+
+  // Calculate average weekly study time from the weekly data
+  const calculateAverageWeeklyStudyTime = useCallback(() => {
+    return weeklyData.averageMinutesPerWeek
+  }, [weeklyData])
+
+  // Memoize values that are used in the render
+  const todayProgress = useMemo(() => calculateTodayProgress(), [calculateTodayProgress])
+  const streak = useMemo(() => calculateStreak(), [calculateStreak])
+  const productivityTrend = useMemo(() => calculateProductivityTrend(), [calculateProductivityTrend])
+  const averageWeeklyMinutes = useMemo(() => calculateAverageWeeklyStudyTime(), [calculateAverageWeeklyStudyTime])
+
+  // Calculate best streak - the longest streak the user has ever achieved
+  const calculateBestStreak = () => {
+    if (studyData.sessions.length === 0) return 0
 
     // Create a map of dates to total minutes studied
     const dateToMinutesMap: Record<string, number> = {}
@@ -64,60 +189,51 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
       }
     })
 
-    // Sort dates in descending order (most recent first)
-    const sortedDates = Object.keys(dateToMinutesMap).sort().reverse()
+    // Sort dates in ascending order
+    const sortedDates = Object.keys(dateToMinutesMap).sort()
 
-    // Check if there's activity today
-    const todayKey = today.toISOString().split("T")[0]
-    const hasActivityToday = dateToMinutesMap[todayKey] !== undefined
+    let currentStreak = 0
+    let bestStreak = 0
 
-    // Start counting streak
-    let streak = 0
-    const currentDate = new Date(today)
-
-    // If no activity today, start checking from yesterday
-    if (!hasActivityToday) {
-      currentDate.setDate(currentDate.getDate() - 1)
-    }
-
-    // Count consecutive days meeting the goal
-    while (true) {
-      const dateKey = currentDate.toISOString().split("T")[0]
-      const minutesStudied = dateToMinutesMap[dateKey] || 0
+    // Check each date to find consecutive days meeting the goal
+    for (let i = 0; i < sortedDates.length; i++) {
+      const dateKey = sortedDates[i]
+      const minutesStudied = dateToMinutesMap[dateKey]
 
       // Check if goal was met for this day
       if (minutesStudied >= dailyGoal * 60) {
-        streak++
-        // Move to previous day
-        currentDate.setDate(currentDate.getDate() - 1)
+        // If this is the first day or consecutive with previous day
+        if (i === 0 || !isConsecutiveDay(sortedDates[i - 1], dateKey)) {
+          currentStreak = 1
+        } else {
+          currentStreak++
+        }
+
+        // Update best streak if current streak is better
+        bestStreak = Math.max(bestStreak, currentStreak)
       } else {
-        // Streak broken
-        break
+        // Reset current streak if goal not met
+        currentStreak = 0
       }
     }
 
-    return streak
+    return bestStreak
   }
 
-  // Calculate today's progress
-  const calculateTodayProgress = () => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+  // Helper function to check if two dates are consecutive
+  const isConsecutiveDay = (date1: string, date2: string) => {
+    const d1 = new Date(date1)
+    const d2 = new Date(date2)
 
-    const sessionsToday = studyData.sessions.filter((session) => {
-      const sessionDate = new Date(session.timestamp)
-      sessionDate.setHours(0, 0, 0, 0)
-      return sessionDate.getTime() === today.getTime()
-    })
+    // Set to same time to compare just the dates
+    d1.setHours(0, 0, 0, 0)
+    d2.setHours(0, 0, 0, 0)
 
-    const totalMinutes = sessionsToday.reduce((sum, session) => sum + session.minutes, 0)
-    const goalMinutes = dailyGoal * 60
+    // Calculate difference in days
+    const diffTime = d2.getTime() - d1.getTime()
+    const diffDays = diffTime / (1000 * 60 * 60 * 24)
 
-    return {
-      minutes: totalMinutes,
-      percentage: Math.min(100, Math.round((totalMinutes / goalMinutes) * 100)),
-      goalMinutes,
-    }
+    return diffDays === 1
   }
 
   // Get data for hourly view with offset
@@ -133,36 +249,52 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
       return date
     })
 
-    return hours.map((hour) => {
-      const hourStart = new Date(hour)
-      const hourEnd = new Date(hourStart)
-      hourEnd.setHours(hourStart.getHours() + 1)
+    // Initialize hourly minutes
+    const hourlyMinutes: { [hour: number]: number } = {}
+    hours.forEach((hour) => {
+      hourlyMinutes[hour.getHours()] = 0
+    })
 
-      const sessionsInHour = studyData.sessions.filter((session) => {
-        const sessionTime = new Date(session.timestamp)
-        const sessionDay = new Date(sessionTime)
-        sessionDay.setHours(0, 0, 0, 0)
+    // Process each session and distribute minutes across hours
+    studyData.sessions.forEach((session) => {
+      const sessionTime = new Date(session.timestamp)
+      const sessionDay = new Date(sessionTime)
+      sessionDay.setHours(0, 0, 0, 0)
 
-        const offsetDay = new Date(now)
-        offsetDay.setHours(0, 0, 0, 0)
+      const offsetDay = new Date(now)
+      offsetDay.setHours(0, 0, 0, 0)
 
-        // Only include sessions from the specific day we're looking at
-        if (sessionDay.getTime() !== offsetDay.getTime()) return false
+      // Only include sessions from the specific day we're looking at
+      if (sessionDay.getTime() === offsetDay.getTime()) {
+        const startHour = sessionTime.getHours()
+        const startMinute = sessionTime.getMinutes()
+        let remainingMinutes = session.minutes
+        let currentHour = startHour
 
-        // Check if the session falls within this hour
-        const sessionHour = sessionTime.getHours()
-        return sessionHour === hourStart.getHours()
-      })
-
-      const totalMinutes = sessionsInHour.reduce((sum, session) => sum + session.minutes, 0)
-
-      return {
-        hour: hourStart.getHours(),
-        time: hourStart.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }),
-        minutes: totalMinutes,
-        goal: (dailyGoal * 60) / 24, // Distribute daily goal across 24 hours
+        while (remainingMinutes > 0 && currentHour < 24) {
+          // For the first hour, consider the minutes within that hour
+          if (currentHour === startHour) {
+            const minutesInFirstHour = 60 - startMinute
+            const minutesToAdd = Math.min(remainingMinutes, minutesInFirstHour)
+            hourlyMinutes[currentHour] += minutesToAdd
+            remainingMinutes -= minutesToAdd
+          } else {
+            // For subsequent hours, add up to 60 minutes
+            const minutesToAdd = Math.min(remainingMinutes, 60)
+            hourlyMinutes[currentHour] += minutesToAdd
+            remainingMinutes -= minutesToAdd
+          }
+          currentHour++
+        }
       }
     })
+
+    return hours.map((hour) => ({
+      hour: hour.getHours(),
+      time: hour.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }),
+      minutes: hourlyMinutes[hour.getHours()],
+      goal: (dailyGoal * 60) / 24, // Distribute daily goal across 24 hours
+    }))
   }
 
   // Get data for daily view with offset
@@ -390,8 +522,7 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     }
   }
 
-  const todayProgress = calculateTodayProgress()
-  const streak = calculateStreak()
+  const bestStreak = calculateBestStreak()
 
   // Custom tooltip for charts
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -466,7 +597,7 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
   }
 
   return (
-    <div className="p-4 md:p-6 h-full overflow-y-auto">
+    <div className="p-4 md:p-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6">
         <Card className="shadow-md">
@@ -514,9 +645,7 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
               <div>
                 <h3 className="text-lg font-medium mb-1">Current Streak</h3>
                 <div className="text-3xl font-bold text-primary">{streak} days</div>
-                <div className="text-sm text-muted-foreground">
-                  {streak > 0 ? "Keep it up! You're on a roll!" : "Start your streak today!"}
-                </div>
+                <div className="text-sm text-muted-foreground mt-1">Best streak: {bestStreak} days</div>
               </div>
             </div>
           </CardContent>
@@ -529,11 +658,16 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
                 <Clock className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h3 className="text-lg font-medium mb-1">Total Study Time</h3>
+                <h3 className="text-lg font-medium mb-1">Weekly Average</h3>
                 <div className="text-3xl font-bold text-primary">
-                  {Math.floor(studyData.sessions.reduce((sum, session) => sum + session.minutes, 0) / 60)}h
+                  {Math.floor(averageWeeklyMinutes / 60)}h {averageWeeklyMinutes % 60}m
                 </div>
-                <div className="text-sm text-muted-foreground">Across {studyData.sessions.length} sessions</div>
+                <div className="flex items-center text-sm mt-1">
+                  <span className="text-muted-foreground">
+                    {productivityTrend > 0 ? "+" : "-"}
+                    {productivityTrend > 200 ? "200" : productivityTrend}% from last week
+                  </span>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -579,9 +713,9 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
       <Card className="shadow-md mb-6">
         <CardContent className="pt-6">
           <h3 className="text-lg font-medium mb-4">Study Time</h3>
-          <div className="h-[350px]">
+          <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={getActiveData()} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+              <BarChart data={getActiveData()} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted)/0.5)" />
                 <XAxis
                   dataKey="date"
@@ -592,7 +726,7 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
                     // For hourly view, use the time property instead of date
                     if (activeTab === "hourly") {
                       const data = getActiveData()
-                      if ('time' in data[index]) {
+                      if ("time" in data[index]) {
                         return data[index].time
                       }
                     }
@@ -605,27 +739,6 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
                   stroke="hsl(var(--foreground)/0.7)"
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <ReferenceLine
-                  y={
-                    activeTab === "hourly"
-                      ? (dailyGoal * 60) / 24
-                      : activeTab === "daily"
-                        ? dailyGoal * 60
-                        : activeTab === "weekly"
-                          ? dailyGoal * 60 * 7
-                          : activeTab === "monthly"
-                            ? dailyGoal * 60 * 30
-                            : dailyGoal * 60 * 365
-                  }
-                  stroke="hsl(var(--primary)/0.6)"
-                  strokeDasharray="3 3"
-                  label={{
-                    value: "Goal",
-                    position: "right",
-                    fill: "hsl(var(--primary))",
-                    fontSize: 12,
-                  }}
-                />
                 <Bar
                   dataKey="minutes"
                   fill="hsl(var(--primary))"
