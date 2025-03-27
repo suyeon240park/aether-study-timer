@@ -323,23 +323,37 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
       goal: dailyGoal * 60 / 24,
     }))
 
-    // Get sessions for the target date
-    const dayData = studyData.date?.[targetDateStr]
-    if (!dayData) return hours
+    // Get sessions for the target date from studyData.sessions
+    const sessionsForDate = studyData.sessions.filter(session => {
+      const sessionDate = new Date(session.timestamp)
+      const sessionDateStr = getDateString(sessionDate)
+      return sessionDateStr === targetDateStr
+    })
+
+    if (sessionsForDate.length === 0) return hours
 
     // Distribute minutes across hours
-    dayData.sessions.forEach((session: StudySession) => {
+    sessionsForDate.forEach((session) => {
       const sessionDate = new Date(session.timestamp)
       const startHour = sessionDate.getHours()
+      const startMinute = sessionDate.getMinutes()
       let remainingMinutes = session.minutes
 
       let currentHour = startHour
+      let currentMinuteInHour = startMinute
+
       while (remainingMinutes > 0 && currentHour < 24) {
-        const minutesInHour = Math.min(remainingMinutes, 60 - sessionDate.getMinutes())
-        hours[currentHour].minutes += minutesInHour
-        remainingMinutes -= minutesInHour
+        // Calculate how many minutes can fit in the current hour
+        const minutesAvailableInHour = 60 - currentMinuteInHour
+        const minutesForThisHour = Math.min(remainingMinutes, minutesAvailableInHour)
+
+        // Add minutes to the current hour
+        hours[currentHour].minutes += minutesForThisHour
+        remainingMinutes -= minutesForThisHour
+
+        // Move to the next hour
         currentHour++
-        sessionDate.setMinutes(0)
+        currentMinuteInHour = 0 // Reset minutes for the next hour
       }
     })
 
