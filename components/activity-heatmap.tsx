@@ -6,8 +6,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
+interface HeatmapSession {
+  timestamp: string
+  minutes: number
+}
+
 interface ActivityHeatmapProps {
-  sessions: StudySession[]
+  sessions: HeatmapSession[]
 }
 
 export default function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
@@ -20,13 +25,8 @@ export default function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
 
     sessions.forEach((session) => {
       const date = new Date(session.timestamp)
-      const key = date.toISOString().split("T")[0] // YYYY-MM-DD
-
-      if (data[key]) {
-        data[key] += session.minutes
-      } else {
-        data[key] = session.minutes
-      }
+      const key = date.toLocaleDateString("en-CA") // YYYY-MM-DD
+      data[key] = session.minutes // Each session now represents total minutes for the day
     })
 
     setHeatmapData(data)
@@ -198,17 +198,15 @@ export default function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
 
                       if (!date) return <div key={`empty-${dayIndex}-${weekIndex}`} className="w-4 h-4"></div>
 
-                      const dateStr = date.toISOString().split("T")[0]
+                      const dateStr = date.toLocaleDateString("en-CA")
                       const minutes = heatmapData[dateStr] || 0
-                      const isToday = new Date().toISOString().split("T")[0] === dateStr
 
                       return (
                         <Tooltip key={`${dateStr}-${dayIndex}-${weekIndex}`}>
                           <TooltipTrigger asChild>
                             <div
-                              className={`w-4 h-4 rounded-sm ${getColorIntensity(minutes)} ${
-                                isToday ? "ring-1 ring-primary ring-offset-1" : ""
-                              }`}
+                              className={`w-4 h-4 rounded-sm ${getColorIntensity(minutes)}`}
+                              aria-label={`${date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}: ${minutes > 0 ? formatTime(minutes) : "No activity"}`}
                             ></div>
                           </TooltipTrigger>
                           <TooltipContent>

@@ -4,12 +4,15 @@
       "$uid": {
         ".read": "$uid === auth.uid",
         ".write": "$uid === auth.uid",
-        
+        ".validate": "newData.hasChildren(['studySessions', 'dailyGoal', 'aethers', 'totalStudyTime'])",
+
         "studySessions": {
-          "$sessionId": {
-            ".validate": "newData.hasChildren(['timestamp', 'minutes'])",
-            "timestamp": { ".validate": "newData.isString()" },
-            "minutes": { ".validate": "newData.isNumber() && newData.val() > 0" }
+          "$date": {
+            "$sessionId": {
+              ".validate": "$date.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.child('timestamp').exists() && newData.child('minutes').exists()",
+              "timestamp": { ".validate": "newData.isString()" },
+              "minutes": { ".validate": "newData.isNumber() && newData.val() > 0" }
+            }
           }
         },
         "dailyGoal": {
@@ -20,7 +23,7 @@
         },
         "totalStudyTime": {
           "$date": {
-            ".validate": "newData.isNumber() && newData.val() >= 0"
+            ".validate": "$date.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.isNumber() && newData.val() >= 0"
           }
         }
       }

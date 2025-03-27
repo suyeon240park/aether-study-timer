@@ -70,11 +70,15 @@ export function useStudyData() {
           const sessions: StudySession[] = []
 
           if (firebaseData.studySessions) {
-            Object.entries(firebaseData.studySessions).forEach(([sessionId, session]: [string, any]) => {
-              sessions.push({
-                id: sessionId,
-                minutes: session.minutes,
-                timestamp: session.timestamp,
+            // Iterate through dates
+            Object.entries(firebaseData.studySessions).forEach(([date, dateSessions]: [string, any]) => {
+              // Iterate through sessions for each date
+              Object.entries(dateSessions).forEach(([sessionId, sessionData]: [string, any]) => {
+                sessions.push({
+                  id: sessionId,
+                  minutes: sessionData.minutes,
+                  timestamp: sessionData.timestamp,
+                })
               })
             })
           }
@@ -116,75 +120,110 @@ export function useStudyData() {
     }
   }, [studyData, isLoaded, isSyncing])
 
-  // Sync local data to Firebase
   const syncLocalToFirebase = useCallback(async () => {
-    if (!user || !isLoaded) return
-
+    if (!user || !isLoaded) return;
+  
     try {
-      const userRef = ref(database, `users/${user.uid}`)
-
+      const userRef = ref(database, `users/${user.uid}`);
+  
       // Convert app format to Firebase format
+      const studySessions: Record<string, Record<string, { minutes: number; timestamp: string }>> = {};
+      
+      // Group sessions by date
+      studyData.sessions.forEach((session) => {
+        // Get the user's time zone to convert timestamp to local date
+        const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const localDate = new Date(session.timestamp)
+          .toLocaleDateString("en-CA", { timeZone: userTimeZone });
+        console.log("localDate", localDate)
+        // Check if the localDate is valid
+        const isValidDate = !isNaN(new Date(localDate).getTime());
+        if (!isValidDate || !session.timestamp || !session.minutes) {
+          console.error("Invalid session data:", session);
+          return; // Skip invalid sessions
+        }
+  
+        // Initialize date object if it doesn't exist
+        if (!studySessions[localDate]) {
+          studySessions[localDate] = {};
+        }
+  
+        // Add session under the date using session.id
+        studySessions[localDate][session.id] = {
+          minutes: session.minutes,
+          timestamp: session.timestamp,
+        };
+      });
+  
+      // Prepare the complete user data
       const firebaseData = {
-        studySessions: studyData.sessions.reduce((acc, session) => {
-          acc[session.id] = {
-            minutes: session.minutes,
-            timestamp: session.timestamp,
-          }
-          return acc
-        }, {} as Record<string, { minutes: number; timestamp: string }>),
+        studySessions,
         dailyGoal: studyData.dailyGoal,
         aethers: studyData.aethers,
         totalStudyTime: studyData.totalStudyTime,
+      };
+  
+      // Update the user data in Firebase
+      try {
+        await set(userRef, firebaseData);
+        setError(null);
+      } catch (error) {
+        console.error("Failed to sync with Firebase:", error);
+        setError("Failed to save data to server");
       }
-
-      await set(userRef, firebaseData)
-      setError(null)
     } catch (error) {
-      console.error("Failed to sync with Firebase:", error)
-      setError("Failed to save data to server")
+      console.error("Failed to sync with Firebase:", error);
+      setError("Failed to save data to server");
     }
-  }, [user, studyData, isLoaded])
+  }, [user, isLoaded, studyData]);
+  
 
   // Add a new study session
   const addSession = useCallback(async (minutes: number) => {
     if (!user || minutes <= 0) return
-
+  
     try {
       const newSession: StudySession = {
         id: Date.now().toString(),
         minutes,
         timestamp: new Date().toISOString(),
       }
-
-      // Get the date string for the new session
-      const sessionDate = getDateString(new Date(newSession.timestamp))
-
+  
+      // Get the user's local date
+      const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const localDate = new Date(newSession.timestamp)
+        .toLocaleDateString("en-CA", { timeZone: userTimeZone }); // "en-CA" gives YYYY-MM-DD format
+  
+      console.log("sessionDate", localDate)
+  
       // Calculate new total for this date
-      const currentTotal = studyData.totalStudyTime[sessionDate] || 0
+      const currentTotal = studyData.totalStudyTime[localDate] || 0
       const newTotal = currentTotal + minutes
-
+  
       setStudyData((prev) => ({
         ...prev,
         sessions: [...prev.sessions, newSession],
         totalStudyTime: {
           ...prev.totalStudyTime,
-          [sessionDate]: newTotal,
+          [localDate]: newTotal,
         },
       }))
-
+  
       // Update Firebase
       const userRef = ref(database, `users/${user.uid}`)
-      await set(ref(database, `users/${user.uid}/studySessions/${newSession.id}`), {
+      await set(ref(database, `users/${user.uid}/studySessions/${localDate}/${newSession.id}`), {
         minutes: newSession.minutes,
         timestamp: newSession.timestamp,
       })
-      await set(ref(database, `users/${user.uid}/totalStudyTime/${sessionDate}`), newTotal)
+      await set(ref(database, `users/${user.uid}/totalStudyTime/${localDate}`), newTotal)
       setError(null)
     } catch (error) {
       console.error("Failed to add session:", error)
       setError("Failed to save session")
     }
   }, [user, studyData.totalStudyTime])
+  
+  
 
   // Update daily goal
   const setGoal = useCallback(async (goal: number) => {

@@ -24,9 +24,6 @@ export default function StatisticsDialog({
       <DialogContent className="w-[90vw] max-w-6xl max-h-[90vh] p-0">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="text-3xl font-bold">Statistics Dashboard</DialogTitle>
-          <DialogDescription>
-            View your study statistics and progress over time
-          </DialogDescription>
         </DialogHeader>
         <div className="h-[calc(90vh-120px)] overflow-y-auto">
           <StatisticsDashboard studyData={studyData} dailyGoal={dailyGoal} onGoalChange={onGoalChange} />

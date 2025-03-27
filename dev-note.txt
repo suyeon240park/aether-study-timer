@@ -23,8 +23,16 @@ Implement bar graphs to display total study time across various timeframes: hour
 - Overlap multiple aether and session complete sound naturally
 - Integrate YouTube music on the bottom of the page. They can start, pause, and play next song. They can also add their selected videos.
 
-Future updates
+3/26/2025
+- UTC to Local time conversion
 - Add pomodoro features
+Add a pomodoro timer.
+1. Under existing Settings, create a section "Pomodoro" under "Account" where users can set study time, short break time, long break time, and long break interval concisely. Defaults are 25, 5, 30, 4.
+2. Add a toggle above the timer that swtiches between default timer and pomodoro.
+3. Pomodoro timer has the exactly same timer structure and style as default timer. DO NOT MAKE IT DIFFERENT. The only difference is text above timer "Study 1" or "Break 2" that indicates the current session number.
+4. Study time is stored in Firebase after each pomodoro session but break time is ignored.
+
+Future updates
 - Add leaderboard
 - Integrate Google Task where users can drag tasks into the tasks they are planning to finish during this study session. Tasks are sorted from oldest to newest (tell me if you have any better idea).
 - For extra features like Google Task and YouTube music, users can toggle them on and off in the Settings.
