@@ -54,58 +54,134 @@ export function useStudyData() {
 
   // Sync with Firebase when user logs in
   useEffect(() => {
-    if (!user || !isLoaded) return
+    // Reset to initial state when user logs out
+    if (!user) {
+      setStudyData(initialStudyData)
+      setError(null)
+      setIsSyncing(false)
+      return
+    }
 
-    const userRef = ref(database, `users/${user.uid}`)
+    // Don't proceed if data isn't loaded yet
+    if (!isLoaded) return
 
-    // First, check if user has data in Firebase
+    let unsubscribe: (() => void) | undefined
     setIsSyncing(true)
-    setError(null)
 
-    const unsubscribe = onValue(userRef, (snapshot) => {
-      const firebaseData = snapshot.val()
+    const setupFirebaseSync = async () => {
+      try {
+        // Get a fresh token
+        await user.getIdToken(true)
+        
+        // Create the initial data structure that matches Firebase rules
+        const newUserData = {
+          studySessions: {},
+          dailyGoal: initialStudyData.dailyGoal,
+          aethers: 0,
+          totalStudyTime: {}
+        }
 
-      if (firebaseData) {
+        // Reference to user's data
+        const userRef = ref(database, `users/${user.uid}`)
+
+        // Try to initialize the data structure first
         try {
+          await set(userRef, newUserData)
+        } catch (error) {
+          // If set fails, it might mean the data already exists
+          console.log("Initial data setup skipped - data might already exist")
+        }
+
+        // Now try to read the data
+        const snapshot = await get(userRef)
+        if (snapshot.exists()) {
+          const firebaseData = snapshot.val()
           const sessions: StudySession[] = []
 
           if (firebaseData.studySessions) {
-            // Iterate through dates
             Object.entries(firebaseData.studySessions).forEach(([date, dateSessions]: [string, any]) => {
-              // Iterate through sessions for each date
               Object.entries(dateSessions).forEach(([sessionId, sessionData]: [string, any]) => {
-                sessions.push({
-                  id: sessionId,
-                  minutes: sessionData.minutes,
-                  timestamp: sessionData.timestamp,
-                })
+                if (sessionData.minutes && sessionData.timestamp) {
+                  sessions.push({
+                    id: sessionId,
+                    minutes: sessionData.minutes,
+                    timestamp: sessionData.timestamp,
+                  })
+                }
               })
             })
           }
 
           setStudyData({
-            sessions: [...sessions],
+            sessions,
             dailyGoal: firebaseData.dailyGoal || initialStudyData.dailyGoal,
             aethers: firebaseData.aethers || 0,
             totalStudyTime: firebaseData.totalStudyTime || {},
           })
-        } catch (error) {
-          console.error("Error processing Firebase data:", error)
-          setError("Failed to process data from server")
+        } else {
+          setStudyData(initialStudyData)
         }
-      } else {
-        // If no data in Firebase, upload local data
-        syncLocalToFirebase()
+
+        // Set up the listener for future changes
+        unsubscribe = onValue(userRef, (snapshot) => {
+          if (!user) return
+          
+          const firebaseData = snapshot.val()
+          if (firebaseData) {
+            try {
+              const sessions: StudySession[] = []
+
+              if (firebaseData.studySessions) {
+                Object.entries(firebaseData.studySessions).forEach(([date, dateSessions]: [string, any]) => {
+                  Object.entries(dateSessions).forEach(([sessionId, sessionData]: [string, any]) => {
+                    if (sessionData.minutes && sessionData.timestamp) {
+                      sessions.push({
+                        id: sessionId,
+                        minutes: sessionData.minutes,
+                        timestamp: sessionData.timestamp,
+                      })
+                    }
+                  })
+                })
+              }
+
+              setStudyData({
+                sessions,
+                dailyGoal: firebaseData.dailyGoal || initialStudyData.dailyGoal,
+                aethers: firebaseData.aethers || 0,
+                totalStudyTime: firebaseData.totalStudyTime || {},
+              })
+              setError(null)
+            } catch (error) {
+              console.error("Error processing Firebase data:", error)
+              setError("Failed to process data from server")
+            }
+          }
+          setIsSyncing(false)
+        }, (error) => {
+          console.error("Firebase sync error:", error)
+          setError("Failed to sync with server")
+          setIsSyncing(false)
+        })
+
+        setError(null)
+        setIsSyncing(false)
+      } catch (error) {
+        console.error("Error setting up Firebase sync:", error)
+        setError("Failed to initialize data")
+        setIsSyncing(false)
       }
+    }
 
-      setIsSyncing(false)
-    }, (error) => {
-      console.error("Firebase sync error:", error)
-      setError("Failed to sync with server")
-      setIsSyncing(false)
-    })
+    // Set up Firebase sync
+    setupFirebaseSync()
 
-    return () => unsubscribe()
+    // Cleanup function
+    return () => {
+      if (unsubscribe) {
+        unsubscribe()
+      }
+    }
   }, [user, isLoaded])
 
   // Save data to localStorage whenever it changes
@@ -135,7 +211,7 @@ export function useStudyData() {
         const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const localDate = new Date(session.timestamp)
           .toLocaleDateString("en-CA", { timeZone: userTimeZone });
-        console.log("localDate", localDate)
+          
         // Check if the localDate is valid
         const isValidDate = !isNaN(new Date(localDate).getTime());
         if (!isValidDate || !session.timestamp || !session.minutes) {
@@ -155,12 +231,12 @@ export function useStudyData() {
         };
       });
   
-      // Prepare the complete user data
+      // Prepare the complete user data with required structure
       const firebaseData = {
-        studySessions,
-        dailyGoal: studyData.dailyGoal,
-        aethers: studyData.aethers,
-        totalStudyTime: studyData.totalStudyTime,
+        studySessions: studySessions,
+        dailyGoal: studyData.dailyGoal || initialStudyData.dailyGoal,
+        aethers: studyData.aethers || 0,
+        totalStudyTime: studyData.totalStudyTime || {},
       };
   
       // Update the user data in Firebase

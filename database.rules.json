@@ -2,8 +2,8 @@
   "rules": {
     "users": {
       "$uid": {
-        ".read": "$uid === auth.uid",
-        ".write": "$uid === auth.uid",
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
         ".validate": "newData.hasChildren(['studySessions', 'dailyGoal', 'aethers', 'totalStudyTime'])",
 
         "studySessions": {
@@ -28,7 +28,7 @@
         }
       }
     },
-    ".read": false,
-    ".write": false
+    ".read": "auth != null",
+    ".write": "auth != null"
   }
 }

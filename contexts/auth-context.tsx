@@ -26,7 +26,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          // Force token refresh when auth state changes
+          await user.getIdToken(true)
+        } catch (error) {
+          console.error("Error refreshing token:", error)
+        }
+      }
       setUser(user)
       setLoading(false)
     })
@@ -37,17 +45,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider()
-      await signInWithPopup(auth, provider)
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      })
+      const result = await signInWithPopup(auth, provider)
+  
+      if (result.user) {
+        try {
+          // Force token refresh after sign in
+          await result.user.getIdToken(true)
+          setUser(result.user)
+          setLoading(false)
+        } catch (error) {
+          console.error("Error refreshing token after sign in:", error)
+        }
+      }
     } catch (error) {
-      console.error("Error signing in with Google:", error)
+      console.error("Google Sign-In Error:", error)
     }
   }
+  
 
   const signOut = async () => {
     try {
+      setLoading(true)
       await firebaseSignOut(auth)
+      setUser(null)
+      // Clear local storage on sign out
+      localStorage.removeItem("study-timer-data")
     } catch (error) {
       console.error("Error signing out:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
