@@ -66,117 +66,111 @@ export function useStudyData() {
     if (!isLoaded) return
 
     let unsubscribe: (() => void) | undefined
-    setIsSyncing(true)
+    let retryCount = 0
+    const MAX_RETRIES = 3
 
-    const setupFirebaseSync = async () => {
+    const initializeUserData = async () => {
       try {
-        // Get a fresh token
+        // Force refresh the token before accessing the database
         await user.getIdToken(true)
         
-        // Create the initial data structure that matches Firebase rules
-        const newUserData = {
-          studySessions: {},
-          dailyGoal: initialStudyData.dailyGoal,
-          aethers: 0,
-          totalStudyTime: {}
-        }
-
-        // Reference to user's data
+        // Add a small delay to ensure token propagation
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
         const userRef = ref(database, `users/${user.uid}`)
-
-        // Try to initialize the data structure first
-        try {
-          await set(userRef, newUserData)
-        } catch (error) {
-          // If set fails, it might mean the data already exists
-          console.log("Initial data setup skipped - data might already exist")
-        }
-
-        // Now try to read the data
         const snapshot = await get(userRef)
-        if (snapshot.exists()) {
-          const firebaseData = snapshot.val()
-          const sessions: StudySession[] = []
 
-          if (firebaseData.studySessions) {
-            Object.entries(firebaseData.studySessions).forEach(([date, dateSessions]: [string, any]) => {
-              Object.entries(dateSessions).forEach(([sessionId, sessionData]: [string, any]) => {
-                if (sessionData.minutes && sessionData.timestamp) {
-                  sessions.push({
-                    id: sessionId,
-                    minutes: sessionData.minutes,
-                    timestamp: sessionData.timestamp,
-                  })
-                }
-              })
-            })
+        if (!snapshot.exists()) {
+          // Initialize with required structure for new users
+          const newUserData = {
+            studySessions: {},
+            dailyGoal: initialStudyData.dailyGoal,
+            aethers: 0,
+            totalStudyTime: {}
           }
 
-          setStudyData({
-            sessions,
-            dailyGoal: firebaseData.dailyGoal || initialStudyData.dailyGoal,
-            aethers: firebaseData.aethers || 0,
-            totalStudyTime: firebaseData.totalStudyTime || {},
-          })
-        } else {
+          // Try to set the initial data
+          await set(userRef, newUserData)
           setStudyData(initialStudyData)
         }
 
-        // Set up the listener for future changes
-        unsubscribe = onValue(userRef, (snapshot) => {
-          if (!user) return
-          
-          const firebaseData = snapshot.val()
-          if (firebaseData) {
-            try {
-              const sessions: StudySession[] = []
+        // If we get here, initialization was successful
+        return true
+      } catch (error) {
+        console.error("Error initializing user data:", error)
+        
+        // Only retry if we haven't exceeded max retries
+        if (retryCount < MAX_RETRIES) {
+          retryCount++
+          // Wait longer between each retry
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount))
+          return initializeUserData() // Retry recursively
+        }
 
-              if (firebaseData.studySessions) {
-                Object.entries(firebaseData.studySessions).forEach(([date, dateSessions]: [string, any]) => {
-                  Object.entries(dateSessions).forEach(([sessionId, sessionData]: [string, any]) => {
-                    if (sessionData.minutes && sessionData.timestamp) {
-                      sessions.push({
-                        id: sessionId,
-                        minutes: sessionData.minutes,
-                        timestamp: sessionData.timestamp,
-                      })
-                    }
-                  })
+        // If we've exceeded retries, set error and return false
+        if (user) {
+          setError("Failed to initialize user data")
+        }
+        return false
+      }
+    }
+
+    // Initialize data first, then set up listener
+    initializeUserData().then((initialized) => {
+      // Don't set up listener if initialization failed or user logged out
+      if (!initialized || !user) return
+
+      const userRef = ref(database, `users/${user.uid}`)
+      unsubscribe = onValue(userRef, (snapshot) => {
+        // Don't process data if user has logged out
+        if (!user) return
+
+        const firebaseData = snapshot.val()
+        if (firebaseData) {
+          try {
+            const sessions: StudySession[] = []
+
+            if (firebaseData.studySessions) {
+              // Iterate through dates
+              Object.entries(firebaseData.studySessions).forEach(([date, dateSessions]: [string, any]) => {
+                // Iterate through sessions for each date
+                Object.entries(dateSessions).forEach(([sessionId, sessionData]: [string, any]) => {
+                  if (sessionData.minutes && sessionData.timestamp) {
+                    sessions.push({
+                      id: sessionId,
+                      minutes: sessionData.minutes,
+                      timestamp: sessionData.timestamp,
+                    })
+                  }
                 })
-              }
-
-              setStudyData({
-                sessions,
-                dailyGoal: firebaseData.dailyGoal || initialStudyData.dailyGoal,
-                aethers: firebaseData.aethers || 0,
-                totalStudyTime: firebaseData.totalStudyTime || {},
               })
-              setError(null)
-            } catch (error) {
+            }
+
+            setStudyData({
+              sessions,
+              dailyGoal: firebaseData.dailyGoal || initialStudyData.dailyGoal,
+              aethers: firebaseData.aethers || 0,
+              totalStudyTime: firebaseData.totalStudyTime || {},
+            })
+            setError(null)
+          } catch (error) {
+            if (user) {
               console.error("Error processing Firebase data:", error)
               setError("Failed to process data from server")
             }
           }
-          setIsSyncing(false)
-        }, (error) => {
+        }
+        setIsSyncing(false)
+      }, (error) => {
+        if (user) {
           console.error("Firebase sync error:", error)
           setError("Failed to sync with server")
           setIsSyncing(false)
-        })
+        }
+      })
+    })
 
-        setError(null)
-        setIsSyncing(false)
-      } catch (error) {
-        console.error("Error setting up Firebase sync:", error)
-        setError("Failed to initialize data")
-        setIsSyncing(false)
-      }
-    }
-
-    // Set up Firebase sync
-    setupFirebaseSync()
-
-    // Cleanup function
+    // Cleanup function to unsubscribe and reset state when unmounting or user logs out
     return () => {
       if (unsubscribe) {
         unsubscribe()

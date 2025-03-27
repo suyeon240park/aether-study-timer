@@ -26,15 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          // Force token refresh when auth state changes
-          await user.getIdToken(true)
-        } catch (error) {
-          console.error("Error refreshing token:", error)
-        }
-      }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user)
       setLoading(false)
     })
@@ -45,20 +37,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider()
-      provider.setCustomParameters({
-        prompt: 'select_account'
-      })
       const result = await signInWithPopup(auth, provider)
   
       if (result.user) {
-        try {
-          // Force token refresh after sign in
-          await result.user.getIdToken(true)
-          setUser(result.user)
-          setLoading(false)
-        } catch (error) {
-          console.error("Error refreshing token after sign in:", error)
-        }
+        // Force token refresh and wait for it
+        await result.user.getIdToken(true)
+        
+        // Wait for a short delay to ensure token propagation
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Force a page reload to ensure clean auth state
+        window.location.reload()
       }
     } catch (error) {
       console.error("Google Sign-In Error:", error)
@@ -68,15 +57,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      setLoading(true)
+      // Clear any cached tokens before signing out
+      if (auth.currentUser) {
+        await auth.currentUser.getIdToken(true)
+      }
       await firebaseSignOut(auth)
-      setUser(null)
-      // Clear local storage on sign out
-      localStorage.removeItem("study-timer-data")
     } catch (error) {
       console.error("Error signing out:", error)
-    } finally {
-      setLoading(false)
     }
   }
 
