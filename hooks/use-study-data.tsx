@@ -264,8 +264,6 @@ export function useStudyData() {
       const localDate = new Date(newSession.timestamp)
         .toLocaleDateString("en-CA", { timeZone: userTimeZone }); // "en-CA" gives YYYY-MM-DD format
   
-      console.log("sessionDate", localDate)
-  
       // Calculate new total for this date
       const currentTotal = studyData.totalStudyTime[localDate] || 0
       const newTotal = currentTotal + minutes

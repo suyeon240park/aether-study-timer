@@ -154,7 +154,7 @@ export default function TaskManager() {
   }
 
   return (
-    <div className="mt-8 max-w-md w-full mx-auto">
+    <div className="mt-2 max-w-md w-full mx-auto">
       {/* Task list */}
       <div className="space-y-2 mb-4">
         {tasks.map((task) => (

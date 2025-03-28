@@ -25,7 +25,15 @@ Implement bar graphs to display total study time across various timeframes: hour
 
 3/26/2025
 - UTC to Local time conversion
-- Add pomodoro features
+
+3/27/2025
+- Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+- Reduce the padding between timer and progress bar.
+
+
+- Progress bar resets when resuming the timer after pausing.
+- Add an option to remove the progress bar (might be distracting).
+
 Add a pomodoro timer.
 1. Under existing Settings, create a section "Pomodoro" under "Account" where users can set study time, short break time, long break time, and long break interval concisely. Defaults are 25, 5, 30, 4.
 2. Add a toggle above the timer that swtiches between default timer and pomodoro.
@@ -34,6 +42,7 @@ Add a pomodoro timer.
 
 Future updates
 - Add leaderboard
+- Add a task type feature where users can select a task type for each session and displayed as graphs with different colors.
 - Integrate Google Task where users can drag tasks into the tasks they are planning to finish during this study session. Tasks are sorted from oldest to newest (tell me if you have any better idea).
 - For extra features like Google Task and YouTube music, users can toggle them on and off in the Settings.
 - Make more themes and backgrounds and sell them.

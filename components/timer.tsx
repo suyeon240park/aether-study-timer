@@ -143,7 +143,7 @@ export default function Timer({
       </div>
 
       {isActive && (
-        <div className="mt-12 w-full max-w-md">
+        <div className="mt-8 w-full max-w-md">
           <div className="w-full bg-muted/30 h-2 rounded-full overflow-hidden">
             <div
               className="bg-primary h-full transition-all duration-1000 ease-linear"
