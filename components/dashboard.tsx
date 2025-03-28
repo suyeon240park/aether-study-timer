@@ -157,7 +157,7 @@ export default function Dashboard() {
     await addSession(minutes);
 
     // Calculate if new aethers were earned
-    const aethersEarned = Math.floor((minutes + calculateMinutesForNextAether()) / 30);
+    const aethersEarned = Math.floor((minutes + calculateMinutesForNextAether()) / 60);
 
     if (aethersEarned > 0) {
       // Add aethers to the database
@@ -199,8 +199,8 @@ export default function Dashboard() {
     const currentSessionMinutes = isTimerActive ? Math.floor(timerElapsedTime / 60) : 0;
     const totalMinutes = completedMinutes + currentSessionMinutes;
     
-    // Calculate minutes in current block (0-29)
-    return totalMinutes % 30;
+    // Calculate minutes in current block (0-59)
+    return totalMinutes % 60;
   };
 
   // Handle opening statistics when not logged in
@@ -254,7 +254,7 @@ export default function Dashboard() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{calculateMinutesForNextAether()}/30 min to next aether</p>
+                <p>{calculateMinutesForNextAether()}/60 min to next aether</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
