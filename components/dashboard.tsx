@@ -75,9 +75,9 @@ export default function Dashboard() {
         const newMinutes = Math.floor(remaining / 1000 / 60);
         const newSeconds = Math.floor((remaining / 1000) % 60);
         
-        const newElapsedTime = Math.floor(
-          ((timerMinutes * 60 + timerSeconds) * 1000 - remaining) / 1000
-        );
+        const totalInitialSeconds = timerInitialTime.minutes * 60 + timerInitialTime.seconds;
+        const remainingSeconds = newMinutes * 60 + newSeconds;
+        const newElapsedTime = totalInitialSeconds - remainingSeconds;
 
         if (remaining === 0) {
           clearInterval(timerIntervalRef.current as NodeJS.Timeout);
@@ -88,6 +88,7 @@ export default function Dashboard() {
           // Reset to initial time when timer completes
           setTimerMinutes(timerInitialTime.minutes);
           setTimerSeconds(timerInitialTime.seconds);
+          setTimerElapsedTime(0);
         } else {
           setTimerMinutes(newMinutes);
           setTimerSeconds(newSeconds);
@@ -106,34 +107,37 @@ export default function Dashboard() {
   // Timer handlers
   const handleTimerStart = () => {
     if (!isTimerActive) {
+      // Only reset elapsed time and session start time for new sessions
       setSessionStartTime(Date.now());
       setTimerElapsedTime(0);
       timerEndTimeRef.current = null;
+    } else if (isTimerPaused) {
+      // When resuming from pause, just set a new end time based on remaining duration
+      const remainingSeconds = timerMinutes * 60 + timerSeconds;
+      timerEndTimeRef.current = Date.now() + (remainingSeconds * 1000);
     }
     setIsTimerActive(true);
     setIsTimerPaused(false);
   };
 
   const handleTimerPause = () => {
+    // Store the current elapsed time when pausing
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+    }
     setIsTimerPaused(true);
-    timerEndTimeRef.current = null;
   };
 
   const handleTimerReset = () => {
-    clearInterval(timerIntervalRef.current as NodeJS.Timeout);
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+    }
     setIsTimerActive(false);
     setIsTimerPaused(false);
     setTimerMinutes(timerInitialTime.minutes);
     setTimerSeconds(timerInitialTime.seconds);
     setTimerElapsedTime(0);
     timerEndTimeRef.current = null;
-
-    if (sessionStartTime && timerElapsedTime > 0) {
-      const totalMinutes = Math.floor(timerElapsedTime / 60);
-      if (totalMinutes > 0) {
-        handleSessionComplete(totalMinutes);
-      }
-    }
     setSessionStartTime(null);
   };
 

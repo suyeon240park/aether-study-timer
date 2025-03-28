@@ -21,7 +21,6 @@ interface TimerProps {
 }
 
 export default function Timer({
-  onSessionComplete,
   minutes,
   seconds,
   isActive,
@@ -33,7 +32,6 @@ export default function Timer({
   onReset,
   onTimeChange,
 }: TimerProps) {
-  const [inputMinutes, setInputMinutes] = useState("25")
   const [isEditing, setIsEditing] = useState(false)
   const [timeInput, setTimeInput] = useState("25:00")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -88,17 +86,6 @@ export default function Timer({
       inputRef.current.focus()
     }
   }, [isEditing])
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    if (/^\d*$/.test(value)) {
-      setInputMinutes(value)
-      if (!isActive) {
-        const newMinutes = Number.parseInt(value) || 0
-        onTimeChange(newMinutes, 0)
-      }
-    }
-  }
 
   return (
     <div className="flex flex-col items-center max-w-md w-full mx-auto">
