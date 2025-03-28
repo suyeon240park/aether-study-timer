@@ -7,8 +7,8 @@ import { AuthProvider } from "@/contexts/auth-context"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Study Timer",
-  description: "A study timer application with statistics and rewards",
+  title: "Aether Study Timer",
+  description: "A minimalistic Pomodoro study timer designed to help you focus, track study habits, and boost motivation through a unique reward system.",
   icons: {
     icon: [
       { url: "/favicon/favicon.ico" },
@@ -23,28 +23,28 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: "Study Timer",
-    description: "A study timer application with statistics and rewards",
+    title: "Aether Study Timer",
+    description: "A minimalistic Pomodoro study timer designed to help you focus, track study habits, and boost motivation through a unique reward system.",
     images: [
       {
         url: "/favicon/android-chrome-512x512.png",
         width: 512,
         height: 512,
-        alt: "Study Timer",
+        alt: "Aether Study Timer",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Study Timer",
-    description: "A study timer application with statistics and rewards",
+    title: "Aether Study Timer",
+    description: "A minimalistic Pomodoro study timer designed to help you focus, track study habits, and boost motivation through a unique reward system.",
     images: ["/favicon/android-chrome-512x512.png"],
   },
   manifest: "/favicon/site.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Study Timer",
+    title: "Aether Study Timer",
   },
 }
 
