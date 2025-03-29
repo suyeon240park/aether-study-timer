@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useCallback, useMemo } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
-import type { StudyData, DayData, StudySession } from "@/types/study"
+import type { StudyData } from "@/types/study"
 import {
   BarChart,
   Bar,
@@ -14,15 +14,13 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceLine,
   PieChart,
   Pie,
   Cell,
 } from "recharts"
 import ActivityHeatmap from "@/components/activity-heatmap"
-import { Clock, Flame, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Minus } from "lucide-react"
+import { Clock, Flame, ChevronLeft, ChevronRight } from "lucide-react"
 import { format } from "date-fns"
-import { Line } from "react-chartjs-2"
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -33,8 +31,6 @@ import {
   Title,
   Tooltip as ChartTooltip,
   Legend,
-  ChartData,
-  ChartOptions,
 } from "chart.js"
 
 ChartJS.register(
@@ -56,10 +52,11 @@ interface StatisticsDashboardProps {
 
 // Helper function to get date string in YYYY-MM-DD format
 const getDateString = (date: Date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  // Get user's timezone
+  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  
+  // Convert to local date string in YYYY-MM-DD format using the user's timezone
+  return date.toLocaleDateString('en-CA', { timeZone: userTimeZone });
 }
 
 export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange }: StatisticsDashboardProps) {
@@ -76,82 +73,6 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     setTimeOffset((prev) => Math.max(0, prev - 1))
   }, [])
 
-  // Calculate total study time from all dates
-  const totalStudyTime = useMemo(() => {
-    return Object.values(studyData.totalStudyTime).reduce((sum, minutes) => sum + minutes, 0)
-  }, [studyData.totalStudyTime])
-
-  // Calculate today's study time
-  const todayStudyTime = useMemo(() => {
-    const today = getDateString(new Date())
-    return studyData.totalStudyTime[today] || 0
-  }, [studyData.totalStudyTime])
-
-  // Calculate weekly average study time
-  const weeklyAverageStudyTime = useMemo(() => {
-    const now = new Date()
-    const sevenDaysAgo = new Date(now)
-    sevenDaysAgo.setDate(now.getDate() - 7)
-
-    let totalMinutes = 0
-    let daysWithStudy = 0
-
-    for (let d = new Date(sevenDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
-      const dateStr = getDateString(d)
-      const minutes = studyData.totalStudyTime[dateStr] || 0
-      if (minutes > 0) daysWithStudy++
-      totalMinutes += minutes
-    }
-
-    return daysWithStudy > 0 ? Math.round(totalMinutes / daysWithStudy) : 0
-  }, [studyData.totalStudyTime])
-
-  // Calculate productivity trend (% change in weekly average)
-  const productivityTrend = useMemo(() => {
-    const now = new Date()
-    const twoWeeksAgo = new Date(now)
-    twoWeeksAgo.setDate(now.getDate() - 14)
-
-    // Last week's data
-    let lastWeekTotal = 0
-    let lastWeekDays = 0
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const dateStr = getDateString(d)
-      const minutes = studyData.totalStudyTime[dateStr] || 0
-      if (minutes > 0) lastWeekDays++
-      lastWeekTotal += minutes
-    }
-
-    // Previous week's data
-    let prevWeekTotal = 0
-    let prevWeekDays = 0
-    for (let i = 7; i < 14; i++) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const dateStr = getDateString(d)
-      const minutes = studyData.totalStudyTime[dateStr] || 0
-      if (minutes > 0) prevWeekDays++
-      prevWeekTotal += minutes
-    }
-
-    const lastWeekAvg = lastWeekDays > 0 ? lastWeekTotal / lastWeekDays : 0
-    const prevWeekAvg = prevWeekDays > 0 ? prevWeekTotal / prevWeekDays : 0
-
-    if (prevWeekAvg === 0) return lastWeekAvg > 0 ? 100 : 0
-    return Math.round(((lastWeekAvg - prevWeekAvg) / prevWeekAvg) * 100)
-  }, [studyData.totalStudyTime])
-
-  // Memoize date-based session maps to avoid recalculation
-  const dateToMinutesMap = useMemo(() => {
-    const map: Record<string, number> = {}
-    // Use the date-organized structure directly
-    Object.entries(studyData.date || {}).forEach(([dateKey, dateData]) => {
-      map[dateKey] = (dateData as DayData).sessions.reduce((sum: number, session: StudySession) => sum + session.minutes, 0)
-    })
-    return map
-  }, [studyData.date])
 
   // Calculate streak using memoized date map
   const calculateStreak = useCallback(() => {

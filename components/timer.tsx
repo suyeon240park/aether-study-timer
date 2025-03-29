@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Play, Pause, RotateCcw } from "lucide-react"
 import { formatTime } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 interface TimerProps {
   onSessionComplete: (minutes: number) => void
@@ -18,6 +19,12 @@ interface TimerProps {
   onPause: () => void
   onReset: () => void
   onTimeChange: (minutes: number, seconds: number) => void
+  timerType?: "default" | "pomodoro"
+  pomodoroSession?: {
+    currentSession: number
+    isBreak: boolean
+    totalSessions: number
+  }
 }
 
 export default function Timer({
@@ -31,6 +38,8 @@ export default function Timer({
   onPause,
   onReset,
   onTimeChange,
+  timerType = "default",
+  pomodoroSession,
 }: TimerProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [timeInput, setTimeInput] = useState("25:00")
@@ -89,8 +98,15 @@ export default function Timer({
 
   return (
     <div className="flex flex-col items-center max-w-md w-full mx-auto">
+      {timerType === "pomodoro" && pomodoroSession && (
+        <div className="mb-4 text-xl font-semibold text-primary">
+          {pomodoroSession.isBreak
+            ? `Break ${Math.ceil(pomodoroSession.currentSession / 2)}/${pomodoroSession.totalSessions / 2}`
+            : `Focus ${Math.ceil(pomodoroSession.currentSession / 2)}/${pomodoroSession.totalSessions / 2}`}
+        </div>
+      )}
       <div className="mb-12">
-        {isEditing ? (
+        {isEditing && timerType === "default" ? (
           <input
             ref={inputRef}
             type="text"
@@ -103,8 +119,11 @@ export default function Timer({
           />
         ) : (
           <div
-            className="text-9xl font-bold tabular-nums text-primary cursor-pointer"
-            onClick={() => !isActive && setIsEditing(true)}
+            className={cn(
+              "text-9xl font-bold tabular-nums text-primary",
+              timerType === "default" && !isActive && "cursor-pointer"
+            )}
+            onClick={() => timerType === "default" && !isActive && setIsEditing(true)}
           >
             {formatTime(minutes, seconds)}
           </div>

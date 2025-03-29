@@ -16,7 +16,11 @@ const initialStudyData: StudyData = {
 
 // Helper function to get date string in YYYY-MM-DD format
 const getDateString = (date: Date) => {
-  return date.toISOString().split('T')[0]
+  // Get user's timezone
+  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  
+  // Convert to local date string in YYYY-MM-DD format using the user's timezone
+  return date.toLocaleDateString('en-CA', { timeZone: userTimeZone });
 }
 
 export function useStudyData() {

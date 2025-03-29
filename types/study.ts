@@ -1,20 +1,30 @@
-export interface StudySession {
-  id: string
-  minutes: number
-  timestamp: string
-}
+export type StudySession = {
+  id: string;
+  timestamp: string;
+  minutes: number;
+};
 
-export interface DayData {
-  sessions: StudySession[]
-}
+export type DayData = {
+  sessions: StudySession[];
+  totalMinutes: number;
+};
 
-export interface StudyData {
-  sessions: StudySession[] // Keeping for backward compatibility
-  dailyGoal: number
-  aethers: number
-  totalStudyTime: Record<string, number> // Map of date strings (YYYY-MM-DD) to total minutes
-  date?: Record<string, DayData> // Map of date strings (YYYY-MM-DD) to day data
-}
+export type StudyData = {
+  sessions: StudySession[];
+  totalStudyTime: { [key: string]: number };
+  dailyGoal: number;
+  aethers: number;
+  date?: { [key: string]: DayData };
+};
+
+export type TimerType = "default" | "pomodoro";
+
+export type PomodoroSettings = {
+  focusTime: number;
+  shortBreakTime: number;
+  longBreakTime: number;
+  breakInterval: number;
+};
 
 export interface UserProfile {
   displayName?: string

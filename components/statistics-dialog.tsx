@@ -1,6 +1,6 @@
 "use client"
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import StatisticsDashboard from "@/components/statistics-dashboard"
 import type { StudyData } from "@/types/study"
 
@@ -21,11 +21,11 @@ export default function StatisticsDialog({
 }: StatisticsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[90vw] max-w-6xl max-h-[90vh] p-0">
+      <DialogContent className="w-[90vw] max-w-6xl max-h-[90vh] p-0" aria-describedby="">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="text-3xl font-bold">Statistics Dashboard</DialogTitle>
         </DialogHeader>
-        <div className="h-[calc(90vh-120px)] overflow-y-auto">
+        <div className="h-[calc(90vh-120px)] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <StatisticsDashboard studyData={studyData} dailyGoal={dailyGoal} onGoalChange={onGoalChange} />
         </div>
       </DialogContent>

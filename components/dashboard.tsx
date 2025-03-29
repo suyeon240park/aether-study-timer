@@ -20,6 +20,24 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Switch } from "@/components/ui/switch"
+import { usePreferences } from "@/hooks/use-preferences"
+
+// Add these types at the top of the file
+type TimerType = "default" | "pomodoro";
+type PomodoroSettings = {
+  focusTime: number;
+  shortBreakTime: number;
+  longBreakTime: number;
+  breakInterval: number;
+};
+
+// Add default settings constant
+const DEFAULT_POMODORO_SETTINGS: PomodoroSettings = {
+  focusTime: 25,
+  shortBreakTime: 5,
+  longBreakTime: 30,
+  breakInterval: 4,
+};
 
 // Helper function to play sounds
 const playSound = (src: string, delay: number = 0) => {
@@ -29,6 +47,22 @@ const playSound = (src: string, delay: number = 0) => {
   }, delay);
 };
 
+// Add this right after imports
+const TimerTypeButton = ({ type, active, onClick }: { type: TimerType; active: boolean; onClick: () => void }) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      "flex-1 px-4 py-2 text-sm font-medium transition-colors",
+      "first:rounded-l-md last:rounded-r-md",
+      active
+        ? "bg-primary text-primary-foreground"
+        : "bg-transparent hover:bg-muted"
+    )}
+  >
+    {type === "default" ? "Default Timer" : "Pomodoro Timer"}
+  </button>
+);
+
 export default function Dashboard() {
   const { studyData, addSession, setGoal, dailyGoal, aethers, addAethers, syncWithFirebase } = useStudyData();
   const { user, signOut } = useAuth();
@@ -37,7 +71,16 @@ export default function Dashboard() {
   const [statsOpen, setStatsOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginReason, setLoginReason] = useState<"statistics" | "rewards" | "">("");
-  const [isMusicEnabled, setIsMusicEnabled] = useState(true);
+  
+  const {
+    isLoading,
+    timerType,
+    setTimerType,
+    pomodoroSettings,
+    setPomodoroSettings,
+    isMusicEnabled,
+    setIsMusicEnabled,
+  } = usePreferences();
 
   // Timer state
   const [timerMinutes, setTimerMinutes] = useState(25);
@@ -47,6 +90,8 @@ export default function Dashboard() {
   const [timerElapsedTime, setTimerElapsedTime] = useState(0);
   const [timerInitialTime, setTimerInitialTime] = useState({ minutes: 25, seconds: 0 });
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  const [timerRestartKey, setTimerRestartKey] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerEndTimeRef = useRef<number | null>(null);
 
@@ -55,57 +100,18 @@ export default function Dashboard() {
   const timerRef = useRef<HTMLDivElement>(null);
 
   const [currentAethers, setCurrentAethers] = useState(0);
-
-  useEffect(() => {
-    setCurrentAethers(aethers);
-  }, [aethers]);
-
-  // Timer effect
-  useEffect(() => {
-    if (isTimerActive && !isTimerPaused) {
-      if (!timerEndTimeRef.current) {
-        const totalSeconds = timerMinutes * 60 + timerSeconds;
-        timerEndTimeRef.current = Date.now() + totalSeconds * 1000;
-      }
-
-      timerIntervalRef.current = setInterval(() => {
-        const now = Date.now();
-        const remaining = Math.max(0, timerEndTimeRef.current! - now);
-        
-        const newMinutes = Math.floor(remaining / 1000 / 60);
-        const newSeconds = Math.floor((remaining / 1000) % 60);
-        
-        const totalInitialSeconds = timerInitialTime.minutes * 60 + timerInitialTime.seconds;
-        const remainingSeconds = newMinutes * 60 + newSeconds;
-        const newElapsedTime = totalInitialSeconds - remainingSeconds;
-
-        if (remaining === 0) {
-          clearInterval(timerIntervalRef.current as NodeJS.Timeout);
-          setIsTimerActive(false);
-          timerEndTimeRef.current = null;
-          const totalMinutes = Math.floor(newElapsedTime / 60);
-          handleSessionComplete(totalMinutes);
-          // Reset to initial time when timer completes
-          setTimerMinutes(timerInitialTime.minutes);
-          setTimerSeconds(timerInitialTime.seconds);
-          setTimerElapsedTime(0);
-        } else {
-          setTimerMinutes(newMinutes);
-          setTimerSeconds(newSeconds);
-          setTimerElapsedTime(newElapsedTime);
-        }
-      }, 100);
-    }
-
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    };
-  }, [isTimerActive, isTimerPaused]);
+  
+  const [pomodoroSession, setPomodoroSession] = useState({
+    currentSession: 1,
+    isBreak: false,
+    totalSessions: 8, // 4 focus + 4 break sessions
+  });
 
   // Timer handlers
   const handleTimerStart = () => {
+    // Don't allow start during transition
+    if (isTransitioning) return;
+    
     if (!isTimerActive) {
       // Only reset elapsed time and session start time for new sessions
       setSessionStartTime(Date.now());
@@ -118,9 +124,13 @@ export default function Dashboard() {
     }
     setIsTimerActive(true);
     setIsTimerPaused(false);
+    setTimerRestartKey(prevKey => prevKey + 1);
   };
 
   const handleTimerPause = () => {
+    // Don't allow pause during transition
+    if (isTransitioning) return;
+    
     // Store the current elapsed time when pausing
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -129,6 +139,9 @@ export default function Dashboard() {
   };
 
   const handleTimerReset = () => {
+    // Don't allow reset during transition
+    if (isTransitioning) return;
+    
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
     }
@@ -141,28 +154,16 @@ export default function Dashboard() {
     setSessionStartTime(null);
   };
 
-  const handleTimerTimeChange = (minutes: number, seconds: number) => {
-    setTimerMinutes(minutes);
-    setTimerSeconds(seconds);
-    setTimerInitialTime({ minutes, seconds });
-  };
-
   // Handle session completion with aether animation and sounds
   const handleSessionComplete = async (minutes: number) => {
     // Play session end sound and wait for it to finish (approximately 1 second)
     playSound("/sounds/session-end.mp3");
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // First, add the session to the data
-    await addSession(minutes);
-
     // Calculate if new aethers were earned
     const aethersEarned = Math.floor((minutes + calculateMinutesForNextAether()) / 60);
 
     if (aethersEarned > 0) {
-      // Add aethers to the database
-      await addAethers(aethersEarned);
-
       // Play overlapping aether collect sounds rapidly
       for (let i = 0; i < aethersEarned; i++) {
         playSound("/sounds/aether-collect.mp3", 800 + i * 400); // Play sounds with 400ms overlap
@@ -216,6 +217,231 @@ export default function Dashboard() {
     setStatsOpen(true);
   };
 
+  // Update the handlePomodoroSettingChange function
+  const handlePomodoroSettingChange = (setting: keyof PomodoroSettings, value: number) => {
+    // Ensure value is positive
+    const validValue = Math.max(1, value);
+    
+    setPomodoroSettings(prev => ({
+      ...prev,
+      [setting]: validValue
+    }));
+
+    // If timer is not active and we're in pomodoro mode, update the current timer
+    if (!isTimerActive && timerType === "pomodoro") {
+      // If we're changing the focus time and we're in a focus session,
+      // or if we're changing a break time and we're in a break session,
+      // update the current timer
+      const isBreakSetting = setting === "shortBreakTime" || setting === "longBreakTime";
+      if ((isBreakSetting && pomodoroSession.isBreak) || (!isBreakSetting && !pomodoroSession.isBreak)) {
+        setTimerMinutes(validValue);
+        setTimerSeconds(0);
+        setTimerInitialTime({ minutes: validValue, seconds: 0 });
+      }
+    }
+
+    // If we're changing the break interval, update the total sessions
+    if (setting === "breakInterval") {
+      setPomodoroSession(prev => ({
+        ...prev,
+        totalSessions: validValue * 2,
+      }));
+    }
+  };
+
+  // Add this function to handle Pomodoro session completion
+  const handlePomodoroSessionComplete = async (minutes: number) => {
+    // Set transitioning flag to prevent timer updates
+    setIsTransitioning(true);
+    
+    // Play different sounds for focus and break sessions
+    if (pomodoroSession.isBreak) {
+      playSound("/sounds/break-end.mp3");
+    } else {
+      playSound("/sounds/session-end.mp3");
+      // Only store focus sessions and give aethers
+      await handleSessionComplete(minutes);
+    }
+
+    // Calculate next session
+    const nextSession = pomodoroSession.currentSession + 1;
+    if (nextSession > pomodoroSession.totalSessions) {
+      // All sessions complete, reset timer to focus time
+      const newState = {
+        minutes: pomodoroSettings.focusTime,
+        seconds: 0,
+        initialTime: { minutes: pomodoroSettings.focusTime, seconds: 0 },
+        session: {
+          currentSession: 1,
+          isBreak: false,
+          totalSessions: pomodoroSettings.breakInterval * 2,
+        }
+      };
+
+      // Batch state updates
+      setTimerMinutes(newState.minutes);
+      setTimerSeconds(newState.seconds);
+      setTimerInitialTime(newState.initialTime);
+      setPomodoroSession(newState.session);
+      setTimerElapsedTime(0);
+      setIsTimerActive(false);
+      timerEndTimeRef.current = null;
+      
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      
+      // End transition
+      setIsTransitioning(false);
+      return;
+    }
+
+    // Calculate next session state
+    const nextIsBreak = !pomodoroSession.isBreak;
+    const isLongBreak = nextIsBreak && nextSession === pomodoroSession.totalSessions;
+    const nextDuration = nextIsBreak
+      ? (isLongBreak ? pomodoroSettings.longBreakTime : pomodoroSettings.shortBreakTime)
+      : pomodoroSettings.focusTime;
+
+    // Prepare session state values
+    const newState = {
+      minutes: nextDuration,
+      seconds: 0,
+      initialTime: { minutes: nextDuration, seconds: 0 },
+      session: {
+        currentSession: nextSession,
+        isBreak: nextIsBreak,
+        totalSessions: pomodoroSession.totalSessions,
+      }
+    };
+
+    // Clear existing timer
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    // Brief pause before transition - use a longer delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // Now calculate the end time after the delay
+    // Add a small 300ms buffer to ensure smooth start
+    const endTime = Date.now() + (nextDuration * 60 * 1000) + 300;
+
+    // Batch all state updates together
+    setTimerMinutes(newState.minutes);
+    setTimerSeconds(newState.seconds);
+    setTimerInitialTime(newState.initialTime);
+    setTimerElapsedTime(0);
+    setPomodoroSession(newState.session);
+    setSessionStartTime(Date.now());
+    
+    // Set up timer references and state
+    timerEndTimeRef.current = endTime;
+    
+    // Add a small delay before releasing the transition state
+    // This ensures the UI is fully updated before the timer starts ticking
+    setTimeout(() => {
+      setIsTimerPaused(false);
+      setIsTimerActive(true);
+      setTimerRestartKey(prevKey => prevKey + 1);
+      
+      // Wait a bit more before ending the transition
+      setTimeout(() => {
+        setIsTransitioning(false); // End transition
+      }, 300);
+    }, 100);
+  };
+
+  // Update current aethers when aethers prop changes
+  useEffect(() => {
+    setCurrentAethers(aethers);
+  }, [aethers]);
+
+  // Handle timer type changes
+  useEffect(() => {
+    handleTimerReset();
+    if (timerType === "pomodoro") {
+      setTimerMinutes(pomodoroSettings.focusTime);
+      setTimerSeconds(0);
+      setTimerInitialTime({ minutes: pomodoroSettings.focusTime, seconds: 0 });
+      setPomodoroSession({
+        currentSession: 1,
+        isBreak: false,
+        totalSessions: pomodoroSettings.breakInterval * 2,
+      });
+    } else {
+      setTimerMinutes(25);
+      setTimerSeconds(0);
+      setTimerInitialTime({ minutes: 25, seconds: 0 });
+    }
+  }, [timerType, pomodoroSettings.breakInterval]);
+
+  // Timer effect
+  useEffect(() => {
+    // Skip setup during transition
+    if (isTransitioning) {
+      return;
+    }
+    
+    // Clear any existing interval first to avoid duplicates
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    if (isTimerActive && !isTimerPaused) {
+      if (!timerEndTimeRef.current) {
+        const totalSeconds = timerMinutes * 60 + timerSeconds;
+        // Add a small buffer (100ms) to ensure the first tick doesn't happen too quickly
+        timerEndTimeRef.current = Date.now() + (totalSeconds * 1000) + 100;
+      }
+
+      // Use a small initial delay before starting the interval
+      // This prevents the first tick from happening too quickly
+      const initialDelay = setTimeout(() => {
+        timerIntervalRef.current = setInterval(() => {
+          const now = Date.now();
+          const remaining = Math.max(0, timerEndTimeRef.current! - now);
+          
+          const newMinutes = Math.floor(remaining / 1000 / 60);
+          const newSeconds = Math.floor((remaining / 1000) % 60);
+          
+          const totalInitialSeconds = timerInitialTime.minutes * 60 + timerInitialTime.seconds;
+          const remainingSeconds = newMinutes * 60 + newSeconds;
+          const newElapsedTime = totalInitialSeconds - remainingSeconds;
+
+          setTimerMinutes(newMinutes);
+          setTimerSeconds(newSeconds);
+          setTimerElapsedTime(newElapsedTime);
+
+          if (remaining === 0) {
+            clearInterval(timerIntervalRef.current as NodeJS.Timeout);
+            timerIntervalRef.current = null;
+            timerEndTimeRef.current = null;
+            const totalMinutes = Math.floor(newElapsedTime / 60);
+            
+            if (timerType === "pomodoro") {
+              handlePomodoroSessionComplete(totalMinutes);
+            } else {
+              setIsTimerActive(false);
+              handleSessionComplete(totalMinutes);
+            }
+          }
+        }, 100);
+      }, 200);
+
+      return () => {
+        clearTimeout(initialDelay);
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
+      };
+    }
+  }, [isTimerActive, isTimerPaused, timerRestartKey, isTransitioning]);
+
   // Handle successful login
   useEffect(() => {
     if (user && loginReason) {
@@ -226,6 +452,11 @@ export default function Dashboard() {
       setLoginReason("");
     }
   }, [user, loginReason]);
+
+  // If loading, return empty page
+  if (isLoading) {
+    return <div className="fixed inset-0 bg-background" />;
+  }
 
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
@@ -271,15 +502,12 @@ export default function Dashboard() {
                 <Settings className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md">
+            <SheetContent className="w-full sm:max-w-md flex flex-col h-full" aria-describedby="">
               <SheetTitle className="text-3xl font-bold">Settings</SheetTitle>
-              <SheetDescription>
-                Customize your study experience and manage your account
-              </SheetDescription>
-              <div className="space-y-6 pt-6">
-                <div className="space-y-4">
-                  {/* Authentication Section */}
-                  <div className="pt-4 border-t">
+              <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <div className="space-y-6 pt-6">
+                  <div className="space-y-4">
+                    {/* Authentication Section */}
                     <h4 className="text-sm font-medium mb-4">Account</h4>
                     {user ? (
                       <div className="space-y-4">
@@ -329,18 +557,98 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Music Toggle - Moved to bottom */}
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <h4 className="text-sm font-medium">Background Music</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Enable study music playlist
-                      </p>
+                  {/* Timer Type Section */}
+                  <div className="pt-6 border-t">
+                    <h4 className="text-sm font-medium mb-4">Timer Type</h4>
+                    <div className="flex border rounded-md overflow-hidden">
+                      <TimerTypeButton
+                        type="default"
+                        active={timerType === "default"}
+                        onClick={() => setTimerType("default")}
+                      />
+                      <TimerTypeButton
+                        type="pomodoro"
+                        active={timerType === "pomodoro"}
+                        onClick={() => setTimerType("pomodoro")}
+                      />
                     </div>
-                    <Switch
-                      checked={isMusicEnabled}
-                      onCheckedChange={setIsMusicEnabled}
-                    />
+
+                    {/* Pomodoro Settings */}
+                    {timerType === "pomodoro" && (
+                      <div className="mt-4 space-y-3">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm text-muted-foreground block mb-1">Focus Time</label>
+                            <div className="flex items-center">
+                              <input
+                                type="number"
+                                min="1"
+                                value={pomodoroSettings.focusTime}
+                                onChange={(e) => handlePomodoroSettingChange("focusTime", parseInt(e.target.value) || 1)}
+                                className="flex h-8 w-16 rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              />
+                              <span className="text-sm text-muted-foreground ml-2">min</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-sm text-muted-foreground block mb-1">Short Break</label>
+                            <div className="flex items-center">
+                              <input
+                                type="number"
+                                min="1"
+                                value={pomodoroSettings.shortBreakTime}
+                                onChange={(e) => handlePomodoroSettingChange("shortBreakTime", parseInt(e.target.value) || 1)}
+                                className="flex h-8 w-16 rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              />
+                              <span className="text-sm text-muted-foreground ml-2">min</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-sm text-muted-foreground block mb-1">Long Break</label>
+                            <div className="flex items-center">
+                              <input
+                                type="number"
+                                min="1"
+                                value={pomodoroSettings.longBreakTime}
+                                onChange={(e) => handlePomodoroSettingChange("longBreakTime", parseInt(e.target.value) || 1)}
+                                className="flex h-8 w-16 rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              />
+                              <span className="text-sm text-muted-foreground ml-2">min</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-sm text-muted-foreground block mb-1">Break Interval</label>
+                            <div className="flex items-center">
+                              <input
+                                type="number"
+                                min="1"
+                                value={pomodoroSettings.breakInterval}
+                                onChange={(e) => handlePomodoroSettingChange("breakInterval", parseInt(e.target.value) || 1)}
+                                className="flex h-8 w-16 rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              />
+                              <span className="text-sm text-muted-foreground ml-2">sets</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Music Toggle */}
+                  <div className="pt-6 border-t">
+                    <h4 className="text-sm font-medium mb-2">Music</h4>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <h4 className="text-sm font-medium">Background Music</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Enable study music playlist
+                        </p>
+                      </div>
+                      <Switch
+                        checked={isMusicEnabled}
+                        onCheckedChange={setIsMusicEnabled}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -353,7 +661,7 @@ export default function Dashboard() {
       <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-y-auto">
         <div ref={timerRef}>
           <Timer
-            onSessionComplete={handleSessionComplete}
+            onSessionComplete={timerType === "pomodoro" ? handlePomodoroSessionComplete : handleSessionComplete}
             minutes={timerMinutes}
             seconds={timerSeconds}
             isActive={isTimerActive}
@@ -363,7 +671,13 @@ export default function Dashboard() {
             onStart={handleTimerStart}
             onPause={handleTimerPause}
             onReset={handleTimerReset}
-            onTimeChange={handleTimerTimeChange}
+            onTimeChange={(minutes, seconds) => {
+              setTimerMinutes(minutes);
+              setTimerSeconds(seconds);
+              setTimerInitialTime({ minutes, seconds });
+            }}
+            timerType={timerType}
+            pomodoroSession={timerType === "pomodoro" ? pomodoroSession : undefined}
           />
         </div>
         <div className="mt-8 max-w-md w-full mx-auto">

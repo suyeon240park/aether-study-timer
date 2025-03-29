@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Music, Book, Coffee, Moon, Leaf, X } from "lucide-react"
 import {
@@ -23,10 +23,152 @@ const CHANNELS = {
   jazz: "fTb6yJ7AlT8",        // Jazz
 } as const
 
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
+
 export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
   const [channel, setChannel] = useState<ChannelType>(null)
-  
-  if (!isEnabled) return null
+  const playerRef = useRef<any>(null)
+  const [isPlayerReady, setIsPlayerReady] = useState(false)
+
+  // Suppress YouTube console errors
+  useEffect(() => {
+    const originalError = console.error;
+    console.error = (...args) => {
+      // Filter out YouTube-related errors
+      if (
+        typeof args[0] === 'string' &&
+        (args[0].includes('youtube') || 
+         args[0].includes('www-embed-player') ||
+         args[0].includes('youtubei'))
+      ) {
+        return;
+      }
+      originalError.apply(console, args);
+    };
+
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
+
+  // Load YouTube IFrame API
+  useEffect(() => {
+    if (!isEnabled) return;
+
+    // Only load the API once
+    if (window.YT) {
+      setIsPlayerReady(true);
+      return;
+    }
+
+    // Create YouTube API Script
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+
+    // Setup the callback when API is ready
+    window.onYouTubeIframeAPIReady = () => {
+      setIsPlayerReady(true);
+    };
+  }, [isEnabled]);
+
+  // Handle player initialization and channel changes
+  useEffect(() => {
+    if (!isEnabled || !isPlayerReady) return;
+
+    const setupPlayer = () => {
+      if (channel) {
+        if (playerRef.current) {
+          try {
+            // If player exists, load new video
+            playerRef.current.loadVideoById({
+              videoId: CHANNELS[channel],
+              startSeconds: 0,
+              suggestedQuality: 'tiny'
+            });
+          } catch (error) {
+            // Silently handle any YouTube API errors
+            console.debug('YouTube player load error:', error);
+          }
+        } else {
+          try {
+            // Create new player with minimal configuration
+            playerRef.current = new window.YT.Player('youtube-player', {
+              height: '1',
+              width: '1',
+              videoId: CHANNELS[channel],
+              host: 'https://www.youtube-nocookie.com', // Privacy-enhanced mode
+              playerVars: {
+                autoplay: 1,
+                controls: 0,
+                disablekb: 1,
+                enablejsapi: 0, // Disable JS API to reduce tracking
+                fs: 0,
+                modestbranding: 1,
+                origin: window.location.origin,
+                playsinline: 1,
+                rel: 0,
+                showinfo: 0
+              },
+              events: {
+                onReady: (event: any) => {
+                  try {
+                    event.target.setVolume(50);
+                    event.target.playVideo();
+                  } catch (error) {
+                    console.debug('YouTube player ready error:', error);
+                  }
+                },
+                onStateChange: (event: any) => {
+                  try {
+                    // If video ends, restart it (for non-live streams)
+                    if (event.data === window.YT.PlayerState.ENDED) {
+                      event.target.playVideo();
+                    }
+                  } catch (error) {
+                    console.debug('YouTube player state change error:', error);
+                  }
+                }
+              }
+            });
+          } catch (error) {
+            console.debug('YouTube player creation error:', error);
+          }
+        }
+      } else if (playerRef.current) {
+        try {
+          // Stop and destroy player when no channel is selected
+          playerRef.current.stopVideo();
+          playerRef.current.destroy();
+          playerRef.current = null;
+        } catch (error) {
+          console.debug('YouTube player cleanup error:', error);
+        }
+      }
+    };
+
+    setupPlayer();
+
+    // Cleanup function
+    return () => {
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+          playerRef.current = null;
+        } catch (error) {
+          console.debug('YouTube player cleanup error:', error);
+        }
+      }
+    };
+  }, [channel, isEnabled, isPlayerReady]);
+
+  if (!isEnabled) return null;
 
   return (
     <div className="fixed bottom-4 left-4 z-50">
@@ -64,15 +206,7 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
         </DropdownMenuContent>
       </DropdownMenu>
       
-      {channel && (
-        <iframe
-          src={`https://www.youtube.com/embed/${CHANNELS[channel]}?controls=0&showinfo=0&modestbranding=1&autoplay=1&rel=0`}
-          width="1"
-          height="1"
-          style={{ opacity: 0, position: 'absolute' }}
-          allow="autoplay"
-        />
-      )}
+      <div id="youtube-player" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
     </div>
   )
 } 
