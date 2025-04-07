@@ -25,6 +25,7 @@ interface TimerProps {
     isBreak: boolean
     totalSessions: number
   }
+  onSkipBreak?: () => void
 }
 
 export default function Timer({
@@ -40,6 +41,7 @@ export default function Timer({
   onTimeChange,
   timerType = "default",
   pomodoroSession,
+  onSkipBreak,
 }: TimerProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [timeInput, setTimeInput] = useState("25:00")
@@ -146,6 +148,11 @@ export default function Timer({
           <RotateCcw className="h-6 w-6" />
           Reset
         </Button>
+        {timerType === "pomodoro" && pomodoroSession?.isBreak && onSkipBreak && (
+          <Button onClick={onSkipBreak} size="lg" variant="outline" className="gap-2 h-14 px-8 text-lg">
+            Skip
+          </Button>
+        )}
       </div>
 
       {isActive && (

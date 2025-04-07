@@ -51,10 +51,13 @@ After completing all focus and break sessions, the timer stops automatically.
 After each focus session, store the study session in Firebase as usual.
 Break time is ignored in data storage.
 
+4/7/2025
+- Add an option to add custom YouTube music from URL.
 
 Future updates
-- Add an option to remove the progress bar (might be distracting).
+- Add gamified profile with levels
 - Add leaderboard
+- Add an option to remove the progress bar (might be distracting).
 - Add a task type feature where users can select a task type for each session and displayed as graphs with different colors.
 - Integrate Google Task where users can drag tasks into the tasks they are planning to finish during this study session. Tasks are sorted from oldest to newest (tell me if you have any better idea).
 - For extra features like Google Task and YouTube music, users can toggle them on and off in the Settings.

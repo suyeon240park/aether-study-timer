@@ -158,12 +158,18 @@ export default function Dashboard() {
   const handleSessionComplete = async (minutes: number) => {
     // Play session end sound and wait for it to finish (approximately 1 second)
     playSound("/sounds/session-end.mp3");
+
+    // Store session data to database
+    addSession(minutes);
+
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Calculate if new aethers were earned
     const aethersEarned = Math.floor((minutes + calculateMinutesForNextAether()) / 60);
 
     if (aethersEarned > 0) {
+      addAethers(aethersEarned);
+
       // Play overlapping aether collect sounds rapidly
       for (let i = 0; i < aethersEarned; i++) {
         playSound("/sounds/aether-collect.mp3", 800 + i * 400); // Play sounds with 400ms overlap
@@ -263,6 +269,10 @@ export default function Dashboard() {
       await handleSessionComplete(minutes);
     }
 
+    await moveToNextSession();
+  };
+
+  const moveToNextSession = async () => {
     // Calculate next session
     const nextSession = pomodoroSession.currentSession + 1;
     if (nextSession > pomodoroSession.totalSessions) {
@@ -352,6 +362,11 @@ export default function Dashboard() {
         setIsTransitioning(false); // End transition
       }, 300);
     }, 100);
+  };
+
+  const handleSkipBreak = () => {
+    if (!pomodoroSession.isBreak || isTransitioning) return;
+    handlePomodoroSessionComplete(0);
   };
 
   // Update current aethers when aethers prop changes
@@ -649,6 +664,99 @@ export default function Dashboard() {
                         onCheckedChange={setIsMusicEnabled}
                       />
                     </div>
+                    
+                    {isMusicEnabled && (
+                      <div className="mt-4 space-y-3">
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-medium">Custom YouTube Channel</h4>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="YouTube URL (e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ)"
+                              className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              id="custom-youtube-id"
+                            />
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                const input = document.getElementById('custom-youtube-id') as HTMLInputElement;
+                                const url = input.value.trim();
+                                
+                                if (url) {
+                                  // Extract video ID from various YouTube URL formats
+                                  let videoId = '';
+                                  
+                                  // Handle standard youtube.com URLs
+                                  const standardMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/e\/|youtube\.com\/user\/[^\/]+\/[^\/]+\/|youtube\.com\/[^\/]+\/[^\/]+\/|youtube\.com\/attribution_link\?a=.+?&(?:amp;)?u=\/watch\?v=|youtube-nocookie\.com\/watch\?v=|youtube\.com\/shorts\/)([^&?\/\s]+)/);
+                                  
+                                  if (standardMatch && standardMatch[1]) {
+                                    videoId = standardMatch[1];
+                                  }
+                                  
+                                  if (videoId) {
+                                    const customChannels = JSON.parse(localStorage.getItem('customYoutubeChannels') || '[]');
+                                    
+                                    // Check if video ID already exists
+                                    if (!customChannels.some((channel: any) => channel.id === videoId)) {
+                                      // Default channel name
+                                      let channelName = `Custom ${customChannels.length + 1}`;
+                                      
+                                      // Try to fetch video title using oEmbed
+                                      const addChannel = (name: string) => {
+                                        const newChannel = { id: videoId, name: name };
+                                        customChannels.push(newChannel);
+                                        localStorage.setItem('customYoutubeChannels', JSON.stringify(customChannels));
+                                        
+                                        // Trigger storage event for components listening in the same window
+                                        window.dispatchEvent(new StorageEvent('storage', {
+                                          key: 'customYoutubeChannels',
+                                          newValue: JSON.stringify(customChannels)
+                                        }));
+                                        
+                                        input.value = '';
+                                      };
+                                      
+                                      // Try to get video title
+                                      fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
+                                        .then(response => {
+                                          if (!response.ok) throw new Error('Failed to fetch video info');
+                                          return response.json();
+                                        })
+                                        .then(data => {
+                                          // Use video title if available
+                                          if (data && data.title) {
+                                            // Truncate title if too long
+                                            const title = data.title.length > 25 
+                                              ? data.title.substring(0, 22) + '...' 
+                                              : data.title;
+                                            addChannel(title);
+                                          } else {
+                                            addChannel(channelName);
+                                          }
+                                        })
+                                        .catch(() => {
+                                          // Use default name if fetching failed
+                                          addChannel(channelName);
+                                        });
+                                    } else {
+                                      alert("This YouTube video has already been added.");
+                                    }
+                                  } else {
+                                    // Show error for invalid URL
+                                    alert("Invalid YouTube URL. Please enter a valid YouTube URL.");
+                                  }
+                                }
+                              }}
+                            >
+                              Add
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Add a YouTube video URL to create a custom study music playlist.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -678,6 +786,7 @@ export default function Dashboard() {
             }}
             timerType={timerType}
             pomodoroSession={timerType === "pomodoro" ? pomodoroSession : undefined}
+            onSkipBreak={handleSkipBreak}
           />
         </div>
         <div className="mt-8 max-w-md w-full mx-auto">

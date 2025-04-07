@@ -2,19 +2,27 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Music, Book, Coffee, Moon, Leaf, X } from "lucide-react"
+import { Music, Book, Coffee, Moon, Leaf, X, Youtube } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 
 interface MusicWidgetProps {
   isEnabled: boolean
 }
 
-type ChannelType = keyof typeof CHANNELS | null
+// Update channel type to support custom channels
+type ChannelType = keyof typeof CHANNELS | string | null
+
+// Interface for custom channel
+interface CustomChannel {
+  id: string;
+  name: string;
+}
 
 const CHANNELS = {
   lofi: "jfKfPfyJRdk",        // Lofi Girl
@@ -34,6 +42,40 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
   const [channel, setChannel] = useState<ChannelType>(null)
   const playerRef = useRef<any>(null)
   const [isPlayerReady, setIsPlayerReady] = useState(false)
+  const [customChannels, setCustomChannels] = useState<CustomChannel[]>([])
+
+  // Load custom channels from localStorage
+  useEffect(() => {
+    if (isEnabled) {
+      try {
+        const storedChannels = localStorage.getItem('customYoutubeChannels');
+        if (storedChannels) {
+          setCustomChannels(JSON.parse(storedChannels));
+        }
+      } catch (error) {
+        console.debug('Error loading custom channels:', error);
+      }
+    }
+  }, [isEnabled]);
+
+  // Listen for changes to localStorage
+  useEffect(() => {
+    if (!isEnabled) return;
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'customYoutubeChannels') {
+        try {
+          const newChannels = e.newValue ? JSON.parse(e.newValue) : [];
+          setCustomChannels(newChannels);
+        } catch (error) {
+          console.debug('Error parsing custom channels:', error);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [isEnabled]);
 
   // Suppress YouTube console errors
   useEffect(() => {
@@ -78,17 +120,33 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
     };
   }, [isEnabled]);
 
+  // Get video ID based on channel selection
+  const getVideoId = (selectedChannel: ChannelType): string | null => {
+    if (!selectedChannel) return null;
+    
+    // Check if it's a predefined channel
+    if (selectedChannel in CHANNELS) {
+      return CHANNELS[selectedChannel as keyof typeof CHANNELS];
+    }
+    
+    // Check if it's a custom channel
+    const customChannel = customChannels.find(c => c.name === selectedChannel);
+    return customChannel ? customChannel.id : null;
+  };
+
   // Handle player initialization and channel changes
   useEffect(() => {
     if (!isEnabled || !isPlayerReady) return;
 
     const setupPlayer = () => {
-      if (channel) {
+      const videoId = getVideoId(channel);
+      
+      if (videoId) {
         if (playerRef.current) {
           try {
             // If player exists, load new video
             playerRef.current.loadVideoById({
-              videoId: CHANNELS[channel],
+              videoId: videoId,
               startSeconds: 0,
               suggestedQuality: 'tiny'
             });
@@ -102,7 +160,7 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
             playerRef.current = new window.YT.Player('youtube-player', {
               height: '1',
               width: '1',
-              videoId: CHANNELS[channel],
+              videoId: videoId,
               host: 'https://www.youtube-nocookie.com', // Privacy-enhanced mode
               playerVars: {
                 autoplay: 1,
@@ -166,7 +224,19 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
         }
       }
     };
-  }, [channel, isEnabled, isPlayerReady]);
+  }, [channel, isEnabled, isPlayerReady, customChannels]);
+
+  // Function to remove a custom channel
+  const removeCustomChannel = (channelName: string) => {
+    const updatedChannels = customChannels.filter(c => c.name !== channelName);
+    setCustomChannels(updatedChannels);
+    localStorage.setItem('customYoutubeChannels', JSON.stringify(updatedChannels));
+    
+    // If currently playing this channel, stop it
+    if (channel === channelName) {
+      setChannel(null);
+    }
+  };
 
   if (!isEnabled) return null;
 
@@ -203,6 +273,34 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
             <Coffee className="h-4 w-4 mr-2" />
             Jazz
           </DropdownMenuItem>
+          
+          {customChannels.length > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              {customChannels.map((customChannel, index) => (
+                <DropdownMenuItem 
+                  key={index}
+                  className="flex justify-between items-center group"
+                >
+                  <div className="flex items-center" onClick={() => setChannel(customChannel.name)}>
+                    <Youtube className="h-4 w-4 mr-2" />
+                    <span>{customChannel.name}</span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeCustomChannel(customChannel.name);
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       
