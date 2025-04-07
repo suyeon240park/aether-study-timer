@@ -11,6 +11,8 @@ interface LoginModalProps {
   onOpenChange: (open: boolean) => void
   title?: string
   description?: string
+  reason?: "statistics" | "rewards" | ""
+  onLoginComplete?: () => void
 }
 
 export default function LoginModal({
@@ -18,6 +20,8 @@ export default function LoginModal({
   onOpenChange,
   title = "Sign in to continue",
   description = "Sign in to save your progress and access all features.",
+  reason = "",
+  onLoginComplete,
 }: LoginModalProps) {
   const { signInWithGoogle } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
@@ -27,6 +31,9 @@ export default function LoginModal({
     try {
       await signInWithGoogle()
       onOpenChange(false)
+      if (onLoginComplete) {
+        onLoginComplete()
+      }
     } catch (error) {
       console.error("Error signing in:", error)
     } finally {
@@ -34,12 +41,22 @@ export default function LoginModal({
     }
   }
 
+  // Get customized description based on reason
+  const getDescription = () => {
+    if (reason === "statistics") {
+      return "Sign in to view and track your study statistics across devices."
+    } else if (reason === "rewards") {
+      return "Sign in to access your Aether rewards and track your progress."
+    }
+    return description
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription>{getDescription()}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-4">
           <Button

@@ -10,6 +10,7 @@ import { useStudyData } from "@/hooks/use-study-data"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
 import StatisticsDialog from "@/components/statistics-dialog"
+import AetherDialog from "@/components/aether-dialog"
 import { useRouter } from "next/navigation"
 import TaskManager from "@/components/task-manager"
 import MusicLoader from "@/components/music-loader"
@@ -69,6 +70,7 @@ export default function Dashboard() {
   const router = useRouter();
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [aetherDialogOpen, setAetherDialogOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginReason, setLoginReason] = useState<"statistics" | "rewards" | "">("");
   
@@ -221,6 +223,19 @@ export default function Dashboard() {
     // User is logged in, sync data and open statistics
     syncWithFirebase();
     setStatsOpen(true);
+  };
+
+  // Handle opening the Aether dialog
+  const handleOpenAethers = () => {
+    if (!user) {
+      setLoginReason("rewards");
+      setLoginModalOpen(true);
+      return;
+    }
+
+    // User is logged in, sync data and open Aether dialog
+    syncWithFirebase();
+    setAetherDialogOpen(true);
   };
 
   // Update the handlePomodoroSettingChange function
@@ -463,6 +478,8 @@ export default function Dashboard() {
       // User just logged in, open statistics if that's what they were trying to access
       if (loginReason === "statistics") {
         setStatsOpen(true);
+      } else if (loginReason === "rewards") {
+        setAetherDialogOpen(true);
       }
       setLoginReason("");
     }
@@ -492,6 +509,7 @@ export default function Dashboard() {
                     "relative transition-all duration-1000",
                     aetherButtonPulse && "animate-single-pulse"
                   )}
+                  onClick={handleOpenAethers}
                 >
                   <Diamond className="h-5 w-5" />
                   <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
@@ -806,8 +824,26 @@ export default function Dashboard() {
         onGoalChange={setGoal}
       />
 
+      <AetherDialog
+        open={aetherDialogOpen}
+        onOpenChange={setAetherDialogOpen}
+        studyData={studyData}
+      />
+
       {/* Login Modal */}
-      <LoginModal open={loginModalOpen} onOpenChange={setLoginModalOpen} />
+      <LoginModal
+        open={loginModalOpen}
+        onOpenChange={setLoginModalOpen}
+        reason={loginReason}
+        onLoginComplete={() => {
+          if (loginReason === "statistics") {
+            setStatsOpen(true);
+          } else if (loginReason === "rewards") {
+            setAetherDialogOpen(true);
+          }
+          setLoginReason("");
+        }}
+      />
     </div>
   );
 }

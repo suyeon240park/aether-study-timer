@@ -73,7 +73,6 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     setTimeOffset((prev) => Math.max(0, prev - 1))
   }, [])
 
-
   // Calculate streak using memoized date map
   const calculateStreak = useCallback(() => {
     const today = new Date()
