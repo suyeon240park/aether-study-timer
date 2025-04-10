@@ -52,14 +52,17 @@ After each focus session, store the study session in Firebase as usual.
 Break time is ignored in data storage.
 
 4/7/2025
-- Add an option to add custom YouTube music from URL.
+- Added an option to add custom YouTube music from URL.
+- Added an gamified user profile with levels.
+
+4/10/2025
+- Fixed insecure database rules.
 
 Future updates
-- Add gamified profile with levels
+- Fix displaying different aether numbers problem.
+- Make more themes and backgrounds and sell them.
 - Add leaderboard
 - Add an option to remove the progress bar (might be distracting).
+- Add a task page with different projects like Google Task.
 - Add a task type feature where users can select a task type for each session and displayed as graphs with different colors.
 - Integrate Google Task where users can drag tasks into the tasks they are planning to finish during this study session. Tasks are sorted from oldest to newest (tell me if you have any better idea).
-- For extra features like Google Task and YouTube music, users can toggle them on and off in the Settings.
-- Make more themes and backgrounds and sell them.
-- Add premium features like Statistics, music, and to-do (think about it).
