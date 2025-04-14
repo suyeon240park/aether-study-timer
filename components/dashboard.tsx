@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Diamond, Settings, LogOut, LogIn, Music, AlertTriangle } from "lucide-react"
+import { BarChart3, Diamond, Settings, LogOut, LogIn, Music, AlertTriangle, Lock, Youtube } from "lucide-react"
 import Timer from "@/components/timer"
 import LoginModal from "@/components/login-modal"
 import { useStudyData } from "@/hooks/use-study-data"
@@ -563,7 +563,7 @@ export default function Dashboard() {
             <SheetContent className="w-full sm:max-w-md flex flex-col h-full" aria-describedby="">
               <SheetTitle className="text-3xl font-bold">Settings</SheetTitle>
               <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <div className="space-y-6 pt-6">
+                <div className="space-y-6 pt-6 px-1">
                   <div className="space-y-4">
                     {/* Authentication Section */}
                     <h4 className="text-sm font-medium mb-4">Account</h4>
@@ -582,7 +582,26 @@ export default function Dashboard() {
                             <div className="text-sm text-muted-foreground">{user.email}</div>
                           </div>
                         </div>
-                        <Button variant="outline" className="w-full flex items-center gap-2" onClick={() => signOut()}>
+                        <Button 
+                          variant="outline" 
+                          className="w-full flex items-center gap-2" 
+                          onClick={async () => {
+                            // Clear custom YouTube playlists from localStorage
+                            localStorage.removeItem('customYoutubeChannels');
+                            
+                            // Trigger storage event to update music widget
+                            window.dispatchEvent(new StorageEvent('storage', {
+                              key: 'customYoutubeChannels',
+                              newValue: null
+                            }));
+
+                            // Trigger music exit event
+                            window.dispatchEvent(new CustomEvent('exitMusic'));
+                            
+                            // Sign out user
+                            await signOut();
+                          }}
+                        >
                           <LogOut className="h-4 w-4" />
                           Sign Out
                         </Button>
@@ -710,93 +729,127 @@ export default function Dashboard() {
                     
                     {isMusicEnabled && (
                       <div className="mt-4 space-y-3">
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-medium">Custom YouTube Channel</h4>
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              placeholder="YouTube URL (e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ)"
-                              className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                              id="custom-youtube-id"
-                            />
-                            <Button 
-                              size="sm"
-                              onClick={() => {
-                                const input = document.getElementById('custom-youtube-id') as HTMLInputElement;
-                                const url = input.value.trim();
-                                
-                                if (url) {
-                                  // Extract video ID from various YouTube URL formats
-                                  let videoId = '';
-                                  
-                                  // Handle standard youtube.com URLs
-                                  const standardMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/e\/|youtube\.com\/user\/[^\/]+\/[^\/]+\/|youtube\.com\/[^\/]+\/[^\/]+\/|youtube\.com\/attribution_link\?a=.+?&(?:amp;)?u=\/watch\?v=|youtube-nocookie\.com\/watch\?v=|youtube\.com\/shorts\/)([^&?\/\s]+)/);
-                                  
-                                  if (standardMatch && standardMatch[1]) {
-                                    videoId = standardMatch[1];
-                                  }
-                                  
-                                  if (videoId) {
-                                    const customChannels = JSON.parse(localStorage.getItem('customYoutubeChannels') || '[]');
+                        <div className="relative space-y-2">
+                          <h4 className="text-sm font-medium">Custom YouTube Playlist</h4>
+                          
+                          {user ? (
+                            <div className="space-y-2">
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="YouTube URL (e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ)"
+                                  className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  id="custom-youtube-id"
+                                />
+                                <Button 
+                                  size="sm"
+                                  onClick={() => {
+                                    const input = document.getElementById('custom-youtube-id') as HTMLInputElement;
+                                    const url = input.value.trim();
                                     
-                                    // Check if video ID already exists
-                                    if (!customChannels.some((channel: any) => channel.id === videoId)) {
-                                      // Default channel name
-                                      let channelName = `Custom ${customChannels.length + 1}`;
+                                    if (url) {
+                                      // Extract video ID from various YouTube URL formats
+                                      let videoId = '';
                                       
-                                      // Try to fetch video title using oEmbed
-                                      const addChannel = (name: string) => {
-                                        const newChannel = { id: videoId, name: name };
-                                        customChannels.push(newChannel);
-                                        localStorage.setItem('customYoutubeChannels', JSON.stringify(customChannels));
-                                        
-                                        // Trigger storage event for components listening in the same window
-                                        window.dispatchEvent(new StorageEvent('storage', {
-                                          key: 'customYoutubeChannels',
-                                          newValue: JSON.stringify(customChannels)
-                                        }));
-                                        
-                                        input.value = '';
-                                      };
+                                      // Handle standard youtube.com URLs
+                                      const standardMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/e\/|youtube\.com\/user\/[^\/]+\/[^\/]+\/|youtube\.com\/[^\/]+\/[^\/]+\/|youtube\.com\/attribution_link\?a=.+?&(?:amp;)?u=\/watch\?v=|youtube-nocookie\.com\/watch\?v=|youtube\.com\/shorts\/)([^&?\/\s]+)/);
                                       
-                                      // Try to get video title
-                                      fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
-                                        .then(response => {
-                                          if (!response.ok) throw new Error('Failed to fetch video info');
-                                          return response.json();
-                                        })
-                                        .then(data => {
-                                          // Use video title if available
-                                          if (data && data.title) {
-                                            // Truncate title if too long
-                                            const title = data.title.length > 25 
-                                              ? data.title.substring(0, 22) + '...' 
-                                              : data.title;
-                                            addChannel(title);
-                                          } else {
-                                            addChannel(channelName);
-                                          }
-                                        })
-                                        .catch(() => {
-                                          // Use default name if fetching failed
-                                          addChannel(channelName);
-                                        });
-                                    } else {
-                                      alert("This YouTube video has already been added.");
+                                      if (standardMatch && standardMatch[1]) {
+                                        videoId = standardMatch[1];
+                                      }
+                                      
+                                      if (videoId) {
+                                        const customChannels = JSON.parse(localStorage.getItem('customYoutubeChannels') || '[]');
+                                        
+                                        // Check if video ID already exists
+                                        if (!customChannels.some((channel: any) => channel.id === videoId)) {
+                                          // Default channel name
+                                          let channelName = `Custom ${customChannels.length + 1}`;
+                                          
+                                          // Try to fetch video title using oEmbed
+                                          const addChannel = (name: string) => {
+                                            const newChannel = { id: videoId, name: name };
+                                            customChannels.push(newChannel);
+                                            localStorage.setItem('customYoutubeChannels', JSON.stringify(customChannels));
+                                            
+                                            // Trigger storage event for components listening in the same window
+                                            window.dispatchEvent(new StorageEvent('storage', {
+                                              key: 'customYoutubeChannels',
+                                              newValue: JSON.stringify(customChannels)
+                                            }));
+                                            
+                                            input.value = '';
+                                          };
+                                          
+                                          // Try to get video title
+                                          fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
+                                            .then(response => {
+                                              if (!response.ok) throw new Error('Failed to fetch video info');
+                                              return response.json();
+                                            })
+                                            .then(data => {
+                                              // Use video title if available
+                                              if (data && data.title) {
+                                                // Truncate title if too long
+                                                const title = data.title.length > 25 
+                                                  ? data.title.substring(0, 22) + '...' 
+                                                  : data.title;
+                                                addChannel(title);
+                                              } else {
+                                                addChannel(channelName);
+                                              }
+                                            })
+                                            .catch(() => {
+                                              // Use default name if fetching failed
+                                              addChannel(channelName);
+                                            });
+                                        } else {
+                                          alert("This YouTube video has already been added.");
+                                        }
+                                      } else {
+                                        // Show error for invalid URL
+                                        alert("Invalid YouTube URL. Please enter a valid YouTube URL.");
+                                      }
                                     }
-                                  } else {
-                                    // Show error for invalid URL
-                                    alert("Invalid YouTube URL. Please enter a valid YouTube URL.");
-                                  }
-                                }
-                              }}
+                                  }}
+                                >
+                                  Add
+                                </Button>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Add a YouTube video URL to create a custom study music playlist.
+                              </p>
+                            </div>
+                          ) : (
+                            <div 
+                              className="relative overflow-hidden rounded-lg border border-dashed p-6 backdrop-blur-[2px]"
+                              onClick={() => setLoginModalOpen(true)}
                             >
-                              Add
-                            </Button>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Add a YouTube video URL to create a custom study music playlist.
-                          </p>
+                              <div className="absolute inset-0 bg-background/80" />
+                              <div className="relative flex flex-col items-center justify-center gap-2 text-center">
+                                <div className="rounded-full bg-primary/10 p-3">
+                                  <Lock className="h-6 w-6 text-primary" />
+                                </div>
+                                <div className="space-y-1">
+                                  <h4 className="text-sm font-medium">Unlock Custom Music</h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    Sign in to add unlimited YouTube music playlists to your collection
+                                  </p>
+                                </div>
+                                <Button 
+                                  variant="secondary" 
+                                  size="sm" 
+                                  className="mt-2"
+                                >
+                                  <LogIn className="mr-2 h-4 w-4" />
+                                  Sign in
+                                </Button>
+                              </div>
+                              <div className="absolute -right-6 -top-6 opacity-10">
+                                <Youtube className="h-24 w-24" />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

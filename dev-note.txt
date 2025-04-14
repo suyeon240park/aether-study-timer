@@ -62,6 +62,8 @@ Break time is ignored in data storage.
 - Fix discrepency in displayed dashboard aether and real aether.
 - Add play/stop/exit controls to the music widget.
 - Add a "Delete My Account" button.
+- Add a margin to prevent clipped input field borders in Settings.
+- Make custom youtube playlist feature premium to logged-in users.
 
 Future updates
 - Change the favicon design.
@@ -71,3 +73,44 @@ Future updates
 - Add a task page with different projects like Google Task.
 - Add a task type feature where users can select a task type for each session and displayed as graphs with different colors.
 - Integrate Google Task where users can drag tasks into the tasks they are planning to finish during this study session. Tasks are sorted from oldest to newest (tell me if you have any better idea).
+
+
+Design and implement a Theme Purchase Page for a study timer web application. The app uses a virtual currency called Aethers, which users earn by completing study sessions.
+
+Page Purpose:
+Allow users to browse, preview, and purchase new study timer themes using Aethers.
+
+General Layout:
+- A clean, minimalist, and aesthetic interface.
+- Use a grid layout to display unlockable themes.
+- Themes should be shown as cards with:
+  - Thumbnail preview of the theme (background + timer UI sample).
+  - Theme name.
+  - Theme price in Aethers.
+  - Lock/Unlock icon or button (based on purchase status).
+  - Optional: "New", "Popular", or "Limited" tags.
+
+Theme Filtering:
+- Allow users to filter/sort by:
+  - Purchased / Unpurchased
+  - Price (low to high / high to low)
+  - Style (e.g., Classic Art, Minimal, Nature, AI-Aesthetic)
+
+User Info Section:
+- Display the current Aether balance at the top of the page.
+- Include a subtle tooltip or info icon explaining how to earn Aethers.
+
+Theme Preview Modal (on click):
+- Show a **larger preview** of the theme.
+- Include a "Try it now" demo toggle (if possible).
+- Purchase button with Aether cost.
+- Confirmation dialog before purchasing.
+
+After Purchase:
+- Theme should now show as "Owned."
+- Allow user to **equip** the theme immediately.
+
+Design Aesthetic:
+- Cozy, motivational, and calming visual tone.
+- Soft drop shadows, rounded corners, pastel or neutral color palette.
+- Ensure it's responsive (mobile + desktop friendly).

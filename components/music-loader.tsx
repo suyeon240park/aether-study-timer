@@ -122,6 +122,26 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
     };
   }, [isEnabled]);
 
+  // Add event listener for music exit
+  useEffect(() => {
+    const handleExitMusic = () => {
+      if (playerRef.current) {
+        try {
+          playerRef.current.stopVideo();
+          playerRef.current.destroy();
+          playerRef.current = null;
+        } catch (error) {
+          console.debug('YouTube player cleanup error:', error);
+        }
+      }
+      setChannel(null);
+      setIsPaused(false);
+    };
+
+    window.addEventListener('exitMusic', handleExitMusic);
+    return () => window.removeEventListener('exitMusic', handleExitMusic);
+  }, []);
+
   // Get video ID based on channel selection
   const getVideoId = (selectedChannel: ChannelType): string | null => {
     if (!selectedChannel) return null;
@@ -146,12 +166,15 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
       if (videoId) {
         if (playerRef.current) {
           try {
-            // If player exists, load new video
-            playerRef.current.loadVideoById({
-              videoId: videoId,
-              startSeconds: 0,
-              suggestedQuality: 'tiny'
-            });
+            // Only load new video if the channel has changed
+            const currentVideoId = playerRef.current.getVideoData()?.video_id;
+            if (currentVideoId !== videoId) {
+              playerRef.current.loadVideoById({
+                videoId: videoId,
+                startSeconds: 0,
+                suggestedQuality: 'tiny'
+              });
+            }
           } catch (error) {
             // Silently handle any YouTube API errors
             console.debug('YouTube player load error:', error);
@@ -226,7 +249,7 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
         }
       }
     };
-  }, [channel, isEnabled, isPlayerReady, customChannels]);
+  }, [channel, isEnabled, isPlayerReady]);
 
   // Function to remove a custom channel
   const removeCustomChannel = (channelName: string) => {
@@ -262,6 +285,12 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
     setIsPaused(false);
   };
 
+  // Update channel selection to reset pause state
+  const handleChannelSelect = (selectedChannel: ChannelType) => {
+    setChannel(selectedChannel);
+    setIsPaused(false); // Reset pause state when changing channels
+  };
+
   if (!isEnabled) return null;
 
   return (
@@ -282,19 +311,19 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => setChannel("lofi")}>
+            <DropdownMenuItem onClick={() => handleChannelSelect("lofi")}>
               <Moon className="h-4 w-4 mr-2" />
               Lofi Music
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setChannel("classical")}>
+            <DropdownMenuItem onClick={() => handleChannelSelect("classical")}>
               <Book className="h-4 w-4 mr-2" />
               Classical
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setChannel("nature")}>
+            <DropdownMenuItem onClick={() => handleChannelSelect("nature")}>
               <Leaf className="h-4 w-4 mr-2" />
               Nature Sounds
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setChannel("jazz")}>
+            <DropdownMenuItem onClick={() => handleChannelSelect("jazz")}>
               <Coffee className="h-4 w-4 mr-2" />
               Jazz
             </DropdownMenuItem>
@@ -307,7 +336,10 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
                     key={index}
                     className="flex justify-between items-center group"
                   >
-                    <div className="flex items-center" onClick={() => setChannel(customChannel.name)}>
+                    <div 
+                      className="flex items-center" 
+                      onClick={() => handleChannelSelect(customChannel.name)}
+                    >
                       <Youtube className="h-4 w-4 mr-2" />
                       <span>{customChannel.name}</span>
                     </div>
