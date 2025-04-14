@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Music, Book, Coffee, Moon, Leaf, X, Youtube } from "lucide-react"
+import { Music, Book, Coffee, Moon, Leaf, X, Youtube, Pause, Play } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 
 interface MusicWidgetProps {
   isEnabled: boolean
@@ -40,6 +41,7 @@ declare global {
 
 export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
   const [channel, setChannel] = useState<ChannelType>(null)
+  const [isPaused, setIsPaused] = useState(false)
   const playerRef = useRef<any>(null)
   const [isPlayerReady, setIsPlayerReady] = useState(false)
   const [customChannels, setCustomChannels] = useState<CustomChannel[]>([])
@@ -238,71 +240,123 @@ export default function MusicWidget({ isEnabled }: MusicWidgetProps) {
     }
   };
 
+  // Handle play/pause
+  const handlePlayPause = () => {
+    if (!playerRef.current) return;
+    
+    try {
+      if (isPaused) {
+        playerRef.current.playVideo();
+      } else {
+        playerRef.current.pauseVideo();
+      }
+      setIsPaused(!isPaused);
+    } catch (error) {
+      console.debug('YouTube player play/pause error:', error);
+    }
+  };
+
+  // Handle exit
+  const handleExit = () => {
+    setChannel(null);
+    setIsPaused(false);
+  };
+
   if (!isEnabled) return null;
 
   return (
     <div className="fixed bottom-4 left-4 z-50">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon"
-            className={channel ? "bg-primary/10" : ""}
-          >
-            <Music className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem onClick={() => setChannel(null)}>
-            <X className="h-4 w-4 mr-2" />
-            None
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setChannel("lofi")}>
-            <Moon className="h-4 w-4 mr-2" />
-            Lofi Music
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setChannel("classical")}>
-            <Book className="h-4 w-4 mr-2" />
-            Classical
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setChannel("nature")}>
-            <Leaf className="h-4 w-4 mr-2" />
-            Nature Sounds
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setChannel("jazz")}>
-            <Coffee className="h-4 w-4 mr-2" />
-            Jazz
-          </DropdownMenuItem>
-          
-          {customChannels.length > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              {customChannels.map((customChannel, index) => (
-                <DropdownMenuItem 
-                  key={index}
-                  className="flex justify-between items-center group"
-                >
-                  <div className="flex items-center" onClick={() => setChannel(customChannel.name)}>
-                    <Youtube className="h-4 w-4 mr-2" />
-                    <span>{customChannel.name}</span>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeCustomChannel(customChannel.name);
-                    }}
+      <div className="inline-flex rounded-md shadow-sm">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className={cn(
+                channel ? "bg-primary/10" : "",
+                "rounded-r-none",
+                channel && "border-r-0"
+              )}
+            >
+              <Music className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => setChannel("lofi")}>
+              <Moon className="h-4 w-4 mr-2" />
+              Lofi Music
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setChannel("classical")}>
+              <Book className="h-4 w-4 mr-2" />
+              Classical
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setChannel("nature")}>
+              <Leaf className="h-4 w-4 mr-2" />
+              Nature Sounds
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setChannel("jazz")}>
+              <Coffee className="h-4 w-4 mr-2" />
+              Jazz
+            </DropdownMenuItem>
+            
+            {customChannels.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                {customChannels.map((customChannel, index) => (
+                  <DropdownMenuItem 
+                    key={index}
+                    className="flex justify-between items-center group"
                   >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuItem>
-              ))}
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+                    <div className="flex items-center" onClick={() => setChannel(customChannel.name)}>
+                      <Youtube className="h-4 w-4 mr-2" />
+                      <span>{customChannel.name}</span>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeCustomChannel(customChannel.name);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {channel && (
+          <>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handlePlayPause}
+              className={cn(
+                "bg-primary/10 rounded-none border-l-0",
+                "border-r-0"
+              )}
+            >
+              {isPaused ? (
+                <Play className="h-5 w-5" />
+              ) : (
+                <Pause className="h-5 w-5" />
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleExit}
+              className="bg-primary/10 rounded-l-none border-l-0"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </>
+        )}
+      </div>
       
       <div id="youtube-player" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
     </div>

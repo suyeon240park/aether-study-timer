@@ -58,8 +58,13 @@ Break time is ignored in data storage.
 4/10/2025
 - Fixed insecure database rules.
 
+4/14/2025
+- Fix discrepency in displayed dashboard aether and real aether.
+- Add play/stop/exit controls to the music widget.
+- Add a "Delete My Account" button.
+
 Future updates
-- Fix displaying different aether numbers problem.
+- Change the favicon design.
 - Make more themes and backgrounds and sell them.
 - Add leaderboard
 - Add an option to remove the progress bar (might be distracting).

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Diamond, Settings, LogOut, LogIn, Music } from "lucide-react"
+import { BarChart3, Diamond, Settings, LogOut, LogIn, Music, AlertTriangle } from "lucide-react"
 import Timer from "@/components/timer"
 import LoginModal from "@/components/login-modal"
 import { useStudyData } from "@/hooks/use-study-data"
@@ -22,6 +22,19 @@ import {
 } from "@/components/ui/tooltip"
 import { Switch } from "@/components/ui/switch"
 import { usePreferences } from "@/hooks/use-preferences"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { auth, database } from "@/lib/firebase"
+import { ref, remove } from "firebase/database"
+import { deleteUser } from "firebase/auth"
 
 // Add these types at the top of the file
 type TimerType = "default" | "pomodoro";
@@ -101,13 +114,13 @@ export default function Dashboard() {
   const aetherButtonRef = useRef<HTMLButtonElement>(null);
   const timerRef = useRef<HTMLDivElement>(null);
 
-  const [currentAethers, setCurrentAethers] = useState(0);
-  
   const [pomodoroSession, setPomodoroSession] = useState({
     currentSession: 1,
     isBreak: false,
     totalSessions: 8, // 4 focus + 4 break sessions
   });
+
+  const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
 
   // Timer handlers
   const handleTimerStart = () => {
@@ -182,10 +195,7 @@ export default function Dashboard() {
         // Wait for previous animation to complete
         await new Promise<void>((resolve) => {
           setTimeout(() => {
-            // Update the displayed aether count
-            setCurrentAethers(prev => prev + 1);
-            
-            // Trigger pulse animation
+            // Trigger pulse animation only
             setAetherButtonPulse(true);
             
             // Reset pulse after animation
@@ -384,11 +394,6 @@ export default function Dashboard() {
     handlePomodoroSessionComplete(0);
   };
 
-  // Update current aethers when aethers prop changes
-  useEffect(() => {
-    setCurrentAethers(aethers);
-  }, [aethers]);
-
   // Handle timer type changes
   useEffect(() => {
     handleTimerReset();
@@ -485,6 +490,26 @@ export default function Dashboard() {
     }
   }, [user, loginReason]);
 
+  // Handle account deletion
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+
+    try {
+      // Delete user data from Firebase Realtime Database
+      await remove(ref(database, `users/${user.uid}`));
+
+      // Delete Firebase user account
+      await deleteUser(auth.currentUser!);
+
+      // Sign out and redirect to home
+      await signOut();
+      router.push('/');
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      // You might want to show an error message to the user here
+    }
+  };
+
   // If loading, return empty page
   if (isLoading) {
     return <div className="fixed inset-0 bg-background" />;
@@ -513,7 +538,7 @@ export default function Dashboard() {
                 >
                   <Diamond className="h-5 w-5" />
                   <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                    {currentAethers}
+                    {aethers}
                   </span>
                 </Button>
               </TooltipTrigger>
@@ -776,6 +801,21 @@ export default function Dashboard() {
                       </div>
                     )}
                   </div>
+
+                  {/* Delete Account Section */}
+                  {user && (
+                    <div className="pt-6 border-t">
+                      <h4 className="text-sm font-medium mb-4">Danger Zone</h4>
+                      <Button
+                        variant="destructive"
+                        className="w-full flex items-center gap-2"
+                        onClick={() => setDeleteAccountDialogOpen(true)}
+                      >
+                        <AlertTriangle className="h-4 w-4" />
+                        Delete My Account
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </SheetContent>
@@ -844,6 +884,28 @@ export default function Dashboard() {
           setLoginReason("");
         }}
       />
+
+      {/* Delete Account Confirmation Dialog */}
+      <AlertDialog open={deleteAccountDialogOpen} onOpenChange={setDeleteAccountDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete your account
+              and remove all your data from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAccount}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Account
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
