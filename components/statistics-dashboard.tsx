@@ -229,57 +229,6 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     return diffDays === 1
   }
 
-  // Get hourly data for today (uses session data)
-  const getHourlyData = () => {
-    const targetDate = new Date()
-    targetDate.setDate(targetDate.getDate() - timeOffset)
-    const targetDateStr = getDateString(targetDate)
-
-    // Initialize hours array
-    const hours = Array.from({ length: 24 }, (_, i) => ({
-      hour: i,
-      formattedTime: format(new Date().setHours(i, 0, 0, 0), "h a"),
-      minutes: 0,
-      goal: dailyGoal * 60 / 24,
-    }))
-
-    // Get sessions for the target date from studyData.sessions
-    const sessionsForDate = studyData.sessions.filter(session => {
-      const sessionDate = new Date(session.timestamp)
-      const sessionDateStr = getDateString(sessionDate)
-      return sessionDateStr === targetDateStr
-    })
-
-    if (sessionsForDate.length === 0) return hours
-
-    // Distribute minutes across hours
-    sessionsForDate.forEach((session) => {
-      const sessionDate = new Date(session.timestamp)
-      const startHour = sessionDate.getHours()
-      const startMinute = sessionDate.getMinutes()
-      let remainingMinutes = session.minutes
-
-      let currentHour = startHour
-      let currentMinuteInHour = startMinute
-
-      while (remainingMinutes > 0 && currentHour < 24) {
-        // Calculate how many minutes can fit in the current hour
-        const minutesAvailableInHour = 60 - currentMinuteInHour
-        const minutesForThisHour = Math.min(remainingMinutes, minutesAvailableInHour)
-
-        // Add minutes to the current hour
-        hours[currentHour].minutes += minutesForThisHour
-        remainingMinutes -= minutesForThisHour
-
-        // Move to the next hour
-        currentHour++
-        currentMinuteInHour = 0 // Reset minutes for the next hour
-      }
-    })
-
-    return hours
-  }
-
   // Get data for daily view with offset (uses totalStudyTime)
   const getDailyData = () => {
     const targetDate = new Date()
@@ -413,60 +362,9 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     })
   }
 
-  // Get data for heatmap (uses totalStudyTime)
-  const getHeatmapData = () => {
-    const now = new Date()
-    let startDate: Date
-
-    switch (activeTab) {
-      case "hourly":
-        startDate = new Date(now)
-        startDate.setDate(startDate.getDate() - timeOffset * 1 - 30)
-        break
-      case "daily":
-        startDate = new Date(now)
-        startDate.setDate(startDate.getDate() - timeOffset * 7 - 60)
-        break
-      case "weekly":
-        startDate = new Date(now)
-        startDate.setDate(startDate.getDate() - timeOffset * 28 - 90)
-        break
-      case "monthly":
-        startDate = new Date(now)
-        startDate.setMonth(startDate.getMonth() - timeOffset * 12 - 12)
-        break
-      case "yearly":
-        startDate = new Date(now)
-        startDate.setFullYear(startDate.getFullYear() - timeOffset * 5 - 5)
-        break
-      default:
-        startDate = new Date(now)
-        startDate.setDate(startDate.getDate() - 90)
-    }
-
-    // Create an array of { timestamp, minutes } objects from totalStudyTime
-    const heatmapData = []
-    const currentDate = new Date(startDate)
-    while (currentDate <= now) {
-      const dateStr = getDateString(currentDate)
-      const minutes = studyData.totalStudyTime[dateStr] || 0
-      if (minutes > 0) {
-        heatmapData.push({
-          timestamp: currentDate.toISOString(),
-          minutes: minutes
-        })
-      }
-      currentDate.setDate(currentDate.getDate() + 1)
-    }
-
-    return heatmapData
-  }
-
   // Get the appropriate data based on active tab
   const getActiveData = () => {
     switch (activeTab) {
-      case "hourly":
-        return getHourlyData()
       case "weekly":
         return getWeeklyData()
       case "monthly":
@@ -484,16 +382,6 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     const now = new Date()
 
     switch (activeTab) {
-      case "hourly": {
-        const offsetDate = new Date(now)
-        offsetDate.setDate(offsetDate.getDate() - timeOffset)
-        return offsetDate.toLocaleDateString(undefined, { 
-          month: "long", 
-          day: "numeric", 
-          year: "numeric",
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone 
-        })
-      }
       case "daily": {
         const startDate = new Date(now)
         startDate.setDate(startDate.getDate() - timeOffset * 7 - 6)
@@ -574,10 +462,6 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     let startDate, endDate
 
     switch (activeTab) {
-      case "hourly":
-        startDate = new Date(now)
-        startDate.setDate(startDate.getDate() - timeOffset * 1 - 30)
-        break
       case "daily":
         startDate = new Date(now)
         startDate.setDate(startDate.getDate() - timeOffset * 7 - 60)
@@ -614,6 +498,51 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     }
 
     return sessions
+  }
+
+  // Get data for heatmap (uses totalStudyTime)
+  const getHeatmapData = () => {
+    const now = new Date()
+    let startDate: Date
+
+    switch (activeTab) {
+      case "daily":
+        startDate = new Date(now)
+        startDate.setDate(startDate.getDate() - timeOffset * 7 - 60)
+        break
+      case "weekly":
+        startDate = new Date(now)
+        startDate.setDate(startDate.getDate() - timeOffset * 28 - 90)
+        break
+      case "monthly":
+        startDate = new Date(now)
+        startDate.setMonth(startDate.getMonth() - timeOffset * 12 - 12)
+        break
+      case "yearly":
+        startDate = new Date(now)
+        startDate.setFullYear(startDate.getFullYear() - timeOffset * 5 - 5)
+        break
+      default:
+        startDate = new Date(now)
+        startDate.setDate(startDate.getDate() - 90)
+    }
+
+    // Create an array of { timestamp, minutes } objects from totalStudyTime
+    const heatmapData = []
+    const currentDate = new Date(startDate)
+    while (currentDate <= now) {
+      const dateStr = getDateString(currentDate)
+      const minutes = studyData.totalStudyTime[dateStr] || 0
+      if (minutes > 0) {
+        heatmapData.push({
+          timestamp: currentDate.toISOString(),
+          minutes: minutes
+        })
+      }
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+
+    return heatmapData
   }
 
   // Calculate weekly stats (average and best day)
@@ -741,8 +670,7 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
             }}
             value={activeTab}
           >
-            <TabsList className="grid grid-cols-5 w-full sm:w-auto">
-              <TabsTrigger value="hourly">Hourly</TabsTrigger>
+            <TabsList className="grid grid-cols-4 w-full sm:w-auto">
               <TabsTrigger value="daily">Daily</TabsTrigger>
               <TabsTrigger value="weekly">Weekly</TabsTrigger>
               <TabsTrigger value="monthly">Monthly</TabsTrigger>
@@ -777,16 +705,6 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
                   tick={{ fontSize: 12 }}
                   tickMargin={10}
                   stroke="hsl(var(--foreground)/0.7)"
-                  tickFormatter={(value, index) => {
-                    // For hourly view, use the time property instead of date
-                    if (activeTab === "hourly") {
-                      const data = getActiveData()
-                      if ("formattedTime" in data[index]) {
-                        return data[index].formattedTime
-                      }
-                    }
-                    return value
-                  }}
                 />
                 <YAxis
                   tick={{ fontSize: 12 }}
@@ -799,7 +717,7 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
                   fill="hsl(var(--primary))"
                   radius={[4, 4, 0, 0]}
                   animationDuration={1000}
-                  barSize={activeTab === "hourly" ? 12 : 24}
+                  barSize={24}
                 />
               </BarChart>
             </ResponsiveContainer>
