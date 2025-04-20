@@ -87,7 +87,6 @@ export function useStudyData() {
         if (!snapshot.exists()) {
           // Initialize with required structure for new users
           const newUserData = {
-            studySessions: {},
             dailyGoal: initialStudyData.dailyGoal,
             aethers: 0,
             totalStudyTime: {}
@@ -132,23 +131,8 @@ export function useStudyData() {
         const firebaseData = snapshot.val()
         if (firebaseData) {
           try {
-            const sessions: StudySession[] = []
-
-            if (firebaseData.studySessions) {
-              // Iterate through dates
-              Object.entries(firebaseData.studySessions).forEach(([date, dateSessions]: [string, any]) => {
-                // Iterate through sessions for each date
-                Object.entries(dateSessions).forEach(([sessionId, sessionData]: [string, any]) => {
-                  if (sessionData.minutes && sessionData.timestamp) {
-                    sessions.push({
-                      id: sessionId,
-                      minutes: sessionData.minutes,
-                      timestamp: sessionData.timestamp,
-                    })
-                  }
-                })
-              })
-            }
+            // Sessions are now only stored locally
+            const sessions = [...studyData.sessions]
 
             setStudyData({
               sessions,
@@ -200,38 +184,8 @@ export function useStudyData() {
     try {
       const userRef = ref(database, `users/${user.uid}`);
   
-      // Convert app format to Firebase format
-      const studySessions: Record<string, Record<string, { minutes: number; timestamp: string }>> = {};
-      
-      // Group sessions by date
-      studyData.sessions.forEach((session) => {
-        // Get the user's time zone to convert timestamp to local date
-        const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const localDate = new Date(session.timestamp)
-          .toLocaleDateString("en-CA", { timeZone: userTimeZone });
-          
-        // Check if the localDate is valid
-        const isValidDate = !isNaN(new Date(localDate).getTime());
-        if (!isValidDate || !session.timestamp || !session.minutes) {
-          console.error("Invalid session data:", session);
-          return; // Skip invalid sessions
-        }
-  
-        // Initialize date object if it doesn't exist
-        if (!studySessions[localDate]) {
-          studySessions[localDate] = {};
-        }
-  
-        // Add session under the date using session.id
-        studySessions[localDate][session.id] = {
-          minutes: session.minutes,
-          timestamp: session.timestamp,
-        };
-      });
-  
-      // Prepare the complete user data with required structure
+      // Prepare the user data with required structure
       const firebaseData = {
-        studySessions: studySessions,
         dailyGoal: studyData.dailyGoal || initialStudyData.dailyGoal,
         aethers: studyData.aethers || 0,
         totalStudyTime: studyData.totalStudyTime || {},
@@ -281,12 +235,7 @@ export function useStudyData() {
         },
       }))
   
-      // Update Firebase
-      const userRef = ref(database, `users/${user.uid}`)
-      await set(ref(database, `users/${user.uid}/studySessions/${localDate}/${newSession.id}`), {
-        minutes: newSession.minutes,
-        timestamp: newSession.timestamp,
-      })
+      // Update only totalStudyTime in Firebase
       await set(ref(database, `users/${user.uid}/totalStudyTime/${localDate}`), newTotal)
       setError(null)
     } catch (error) {
