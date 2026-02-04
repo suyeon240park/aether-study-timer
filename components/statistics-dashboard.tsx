@@ -581,10 +581,10 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
   }, [studyData.totalStudyTime])
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 lg:p-10">
+    <div className="p-4 sm:p-6 md:p-8 lg:p-10 w-full max-w-full overflow-hidden">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 lg:gap-10 mb-6 sm:mb-8 md:mb-10">
-        <Card className="shadow-md">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-6 sm:mb-8 md:mb-10">
+        <Card className="shadow-md overflow-hidden">
           <CardContent className="pt-6">
             <div className="flex justify-between items-start">
               <div className="min-w-0 flex-1">
@@ -623,7 +623,7 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
           </CardContent>
         </Card>
 
-        <Card className="shadow-md">
+        <Card className="shadow-md overflow-hidden">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3 sm:gap-4">
               <div className="bg-primary/20 p-2 sm:p-3 rounded-full flex-shrink-0">
@@ -638,7 +638,7 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
           </CardContent>
         </Card>
 
-        <Card className="shadow-md">
+        <Card className="shadow-md overflow-hidden">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3 sm:gap-4">
               <div className="bg-primary/20 p-2 sm:p-3 rounded-full flex-shrink-0">
