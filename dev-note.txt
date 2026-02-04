@@ -16,11 +16,8 @@ Implement bar graphs to display total study time across various timeframes: hour
 
 3/24/2025
 - For the bar graph, add a light horizontal line indicating the study time goal.
-- Increase title sizes for Statistics, Settings, and Aethers.
-- Add number of aethers in database (currently, aether is calculated from total study time, but later, I will implement purchasable gamify elements. So you shouldn't calculate from total study time, but store and fetch aethers from database)
 - When time over, go back to the first set time. For example, if an user sets the timer to 50 minute before starting the timer, timer should be set to 50 minutes after finishing a study session.
 - Add session complete sound
-- Overlap multiple aether and session complete sound naturally
 - Integrate YouTube music on the bottom of the page. They can start, pause, and play next song. They can also add their selected videos.
 
 3/26/2025

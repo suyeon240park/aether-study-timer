@@ -21,28 +21,6 @@ import {
 import ActivityHeatmap from "@/components/activity-heatmap"
 import { Clock, Flame, ChevronLeft, ChevronRight } from "lucide-react"
 import { format } from "date-fns"
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip as ChartTooltip,
-  Legend,
-} from "chart.js"
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  PointElement,
-  LineElement,
-  Title,
-  ChartTooltip,
-  Legend
-)
 
 interface StatisticsDashboardProps {
   studyData: StudyData

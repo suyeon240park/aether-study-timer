@@ -13,7 +13,6 @@ export type StudyData = {
   sessions: StudySession[];
   totalStudyTime: { [key: string]: number };
   dailyGoal: number;
-  aethers: number;
   date?: { [key: string]: DayData };
 };
 

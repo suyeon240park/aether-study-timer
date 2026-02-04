@@ -152,7 +152,6 @@ export default function Dashboard() {
       preloadAudio('/sounds/session-end.mp3');
       preloadAudio('/sounds/break-end.mp3');
       preloadAudio('/sounds/task-complete.mp3');
-      preloadAudio('/sounds/aether-collect.mp3');
       
       // Remove listeners after first interaction
       document.removeEventListener('click', handleFirstInteraction);
@@ -653,13 +652,21 @@ export default function Dashboard() {
   // Handle account deletion
   const handleDeleteAccount = async () => {
     if (!user) return;
+    if (!database) {
+      console.error("Firebase is not configured (database).");
+      return;
+    }
+    if (!auth?.currentUser) {
+      console.error("No authenticated Firebase user found.");
+      return;
+    }
 
     try {
       // Delete user data from Firebase Realtime Database
       await remove(ref(database, `users/${user.uid}`));
 
       // Delete Firebase user account
-      await deleteUser(auth.currentUser!);
+      await deleteUser(auth.currentUser);
 
       // Sign out and redirect to home
       await signOut();

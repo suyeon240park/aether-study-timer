@@ -11,7 +11,7 @@ interface LoginModalProps {
   onOpenChange: (open: boolean) => void
   title?: string
   description?: string
-  reason?: "statistics" | "rewards" | ""
+  reason?: "statistics" | ""
   onLoginComplete?: () => void
 }
 
@@ -45,8 +45,6 @@ export default function LoginModal({
   const getDescription = () => {
     if (reason === "statistics") {
       return "Sign in to view and track your study statistics across devices."
-    } else if (reason === "rewards") {
-      return "Sign in to access your Aether rewards and track your progress."
     }
     return description
   }

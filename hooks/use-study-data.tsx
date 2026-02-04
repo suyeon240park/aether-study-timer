@@ -10,7 +10,6 @@ import type { StudyData, StudySession } from "@/types/study"
 const initialStudyData: StudyData = {
   sessions: [],
   dailyGoal: 5, // Default 5 hours
-  aethers: 0, // Initialize aethers to 0
   totalStudyTime: {}, // Initialize empty record of daily totals
 }
 
@@ -37,10 +36,6 @@ export function useStudyData() {
       if (savedData) {
         try {
           const parsedData = JSON.parse(savedData)
-          // Handle migration from old data format
-          if (!parsedData.hasOwnProperty("aethers")) {
-            parsedData.aethers = 0
-          }
           if (!parsedData.hasOwnProperty("totalStudyTime") || typeof parsedData.totalStudyTime !== 'object') {
             parsedData.totalStudyTime = {}
           }
@@ -75,6 +70,11 @@ export function useStudyData() {
 
     const initializeUserData = async () => {
       try {
+        if (!database) {
+          if (user) setError("Firebase is not configured")
+          return false
+        }
+
         // Force refresh the token before accessing the database
         await user.getIdToken(true)
         
@@ -88,7 +88,6 @@ export function useStudyData() {
           // Initialize with required structure for new users
           const newUserData = {
             dailyGoal: initialStudyData.dailyGoal,
-            aethers: 0,
             totalStudyTime: {}
           }
 
@@ -122,6 +121,7 @@ export function useStudyData() {
     initializeUserData().then((initialized) => {
       // Don't set up listener if initialization failed or user logged out
       if (!initialized || !user) return
+      if (!database) return
 
       const userRef = ref(database, `users/${user.uid}`)
       unsubscribe = onValue(userRef, (snapshot) => {
@@ -137,7 +137,6 @@ export function useStudyData() {
             setStudyData({
               sessions,
               dailyGoal: firebaseData.dailyGoal || initialStudyData.dailyGoal,
-              aethers: firebaseData.aethers || 0,
               totalStudyTime: firebaseData.totalStudyTime || {},
             })
             setError(null)
@@ -180,6 +179,10 @@ export function useStudyData() {
 
   const syncLocalToFirebase = useCallback(async () => {
     if (!user || !isLoaded) return;
+    if (!database) {
+      setError("Firebase is not configured")
+      return
+    }
   
     try {
       const userRef = ref(database, `users/${user.uid}`);
@@ -187,7 +190,6 @@ export function useStudyData() {
       // Prepare the user data with required structure
       const firebaseData = {
         dailyGoal: studyData.dailyGoal || initialStudyData.dailyGoal,
-        aethers: studyData.aethers || 0,
         totalStudyTime: studyData.totalStudyTime || {},
       };
   
@@ -209,6 +211,10 @@ export function useStudyData() {
   // Add a new study session
   const addSession = useCallback(async (minutes: number) => {
     if (!user || minutes <= 0) return
+    if (!database) {
+      setError("Firebase is not configured")
+      return
+    }
   
     try {
       const newSession: StudySession = {
@@ -249,6 +255,10 @@ export function useStudyData() {
   // Update daily goal
   const setGoal = useCallback(async (goal: number) => {
     if (!user || goal <= 0) return
+    if (!database) {
+      setError("Firebase is not configured")
+      return
+    }
 
     try {
       setStudyData((prev) => ({
@@ -266,35 +276,12 @@ export function useStudyData() {
     }
   }, [user])
 
-  // Add aethers
-  const addAethers = useCallback(async (amount: number) => {
-    if (!user || amount <= 0) return
-
-    try {
-      const newAethers = studyData.aethers + amount
-      setStudyData((prev) => ({
-        ...prev,
-        aethers: newAethers,
-      }))
-
-      // Update Firebase
-      const userRef = ref(database, `users/${user.uid}/aethers`)
-      await set(userRef, newAethers)
-      setError(null)
-    } catch (error) {
-      console.error("Failed to add aethers:", error)
-      setError("Failed to update aethers")
-    }
-  }, [user, studyData.aethers])
-
   return {
     studyData,
     addSession,
     setGoal,
-    addAethers,
     syncWithFirebase: syncLocalToFirebase,
     dailyGoal: studyData.dailyGoal,
-    aethers: studyData.aethers,
     error,
     isSyncing,
   }

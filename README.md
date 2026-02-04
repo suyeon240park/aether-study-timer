@@ -1,10 +1,10 @@
 # Aether Study Timer
 
-A study timer web app with Pomodoro support, statistics, and gamification. Earn **Aethers** by completing study sessions, track your progress with charts and heatmaps, and use themes and music to stay focused.
+A study timer web app with Pomodoro support and analytics. Track your progress with charts and heatmaps, and use themes and music to stay focused.
 
 ## Tech stack
 
-- **Frontend:** Next.js 15, React 18, Tailwind CSS, shadcn/ui
+- **Frontend:** Next.js, React, Tailwind CSS, shadcn/ui
 - **Backend:** Firebase (Authentication, Realtime Database, optional Cloud Functions)
 - **Hosting:** Firebase Hosting (with Next.js framework support)
 
