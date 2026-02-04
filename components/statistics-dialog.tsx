@@ -21,11 +21,11 @@ export default function StatisticsDialog({
 }: StatisticsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[90vw] max-w-6xl max-h-[90vh] p-0" aria-describedby="">
-        <DialogHeader className="p-6 pb-2">
-          <DialogTitle className="text-3xl font-bold">Statistics Dashboard</DialogTitle>
+      <DialogContent className="w-[95vw] sm:w-[90vw] max-w-6xl max-h-[90vh] p-0" aria-describedby="">
+        <DialogHeader className="p-4 sm:p-6 pb-2">
+          <DialogTitle className="text-2xl sm:text-3xl font-bold text-primary">Analytics</DialogTitle>
         </DialogHeader>
-        <div className="h-[calc(90vh-120px)] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="h-[calc(90vh-120px)] overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <StatisticsDashboard studyData={studyData} dailyGoal={dailyGoal} onGoalChange={onGoalChange} />
         </div>
       </DialogContent>

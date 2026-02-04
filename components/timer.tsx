@@ -99,15 +99,15 @@ export default function Timer({
   }, [isEditing])
 
   return (
-    <div className="flex flex-col items-center max-w-md w-full mx-auto">
+    <div className="flex flex-col items-center max-w-md w-full mx-auto px-4">
       {timerType === "pomodoro" && pomodoroSession && (
-        <div className="mb-4 text-xl font-semibold text-primary">
+        <div className="mb-3 sm:mb-4 text-lg sm:text-xl font-semibold text-primary">
           {pomodoroSession.isBreak
             ? `Break ${Math.ceil(pomodoroSession.currentSession / 2)}/${pomodoroSession.totalSessions / 2}`
             : `Focus ${Math.ceil(pomodoroSession.currentSession / 2)}/${pomodoroSession.totalSessions / 2}`}
         </div>
       )}
-      <div className="mb-12">
+      <div className="mb-8 sm:mb-10 md:mb-12">
         {isEditing && timerType === "default" ? (
           <input
             ref={inputRef}
@@ -116,13 +116,13 @@ export default function Timer({
             onChange={handleTimeInputChange}
             onBlur={handleTimeInputBlur}
             onKeyDown={handleTimeInputKeyDown}
-            className="text-9xl font-bold tabular-nums text-primary bg-transparent border-b border-primary text-center w-full focus:outline-none"
+            className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-bold tabular-nums text-primary bg-transparent border-b border-primary text-center w-full focus:outline-none"
             disabled={isActive}
           />
         ) : (
           <div
             className={cn(
-              "text-9xl font-bold tabular-nums text-primary",
+              "text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-bold tabular-nums text-primary",
               timerType === "default" && !isActive && "cursor-pointer"
             )}
             onClick={() => timerType === "default" && !isActive && setIsEditing(true)}
@@ -132,31 +132,31 @@ export default function Timer({
         )}
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-wrap justify-center gap-2 sm:gap-3 md:gap-4">
         {!isActive || isPaused ? (
-          <Button onClick={onStart} size="lg" className="gap-2 h-14 px-8 text-lg">
-            <Play className="h-6 w-6" />
+          <Button onClick={onStart} size="lg" className="gap-2 h-12 sm:h-14 px-6 sm:px-8 text-base sm:text-lg">
+            <Play className="h-5 w-5 sm:h-6 sm:w-6" />
             {isPaused ? "Resume" : "Start"}
           </Button>
         ) : (
-          <Button onClick={onPause} size="lg" variant="outline" className="gap-2 h-14 px-8 text-lg">
-            <Pause className="h-6 w-6" />
+          <Button onClick={onPause} size="lg" variant="outline" className="gap-2 h-12 sm:h-14 px-6 sm:px-8 text-base sm:text-lg">
+            <Pause className="h-5 w-5 sm:h-6 sm:w-6" />
             Pause
           </Button>
         )}
-        <Button onClick={onReset} size="lg" variant="outline" className="gap-2 h-14 px-8 text-lg">
-          <RotateCcw className="h-6 w-6" />
+        <Button onClick={onReset} size="lg" variant="outline" className="gap-2 h-12 sm:h-14 px-6 sm:px-8 text-base sm:text-lg">
+          <RotateCcw className="h-5 w-5 sm:h-6 sm:w-6" />
           Reset
         </Button>
         {timerType === "pomodoro" && pomodoroSession?.isBreak && onSkipBreak && (
-          <Button onClick={onSkipBreak} size="lg" variant="outline" className="gap-2 h-14 px-8 text-lg">
+          <Button onClick={onSkipBreak} size="lg" variant="outline" className="gap-2 h-12 sm:h-14 px-6 sm:px-8 text-base sm:text-lg">
             Skip
           </Button>
         )}
       </div>
 
       {isActive && (
-        <div className="mt-8 w-full max-w-md">
+        <div className="mt-6 sm:mt-8 w-full max-w-md">
           <div className="w-full bg-muted/30 h-2 rounded-full overflow-hidden">
             <div
               className="bg-primary h-full transition-all duration-1000 ease-linear"

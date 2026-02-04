@@ -156,12 +156,12 @@ export default function TaskManager() {
   return (
     <div className="mt-2 max-w-md w-full mx-auto">
       {/* Task list */}
-      <div className="space-y-2 mb-4">
+      <div className="space-y-2 mb-3 sm:mb-4">
         {tasks.map((task) => (
           <div
             key={task.id}
             className={cn(
-              "flex items-center gap-2 p-2 rounded-md border cursor-grab transition-all duration-500",
+              "flex items-center gap-2 p-2 sm:p-2.5 rounded-md border cursor-grab transition-all duration-500",
               dragOverTaskId === task.id && "border-primary bg-primary/5",
               task.completed && "bg-muted/30",
               task.animating && "opacity-0 transform translate-x-4 scale-95",
@@ -175,18 +175,18 @@ export default function TaskManager() {
             <Checkbox
               checked={task.completed}
               onCheckedChange={() => toggleTaskCompletion(task.id)}
-              className="data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+              className="data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground flex-shrink-0"
             />
             <span
               className={cn(
-                "flex-1 text-sm transition-all duration-300",
+                "flex-1 text-sm transition-all duration-300 break-words",
                 task.completed && "line-through text-muted-foreground",
               )}
             >
               {task.text}
             </span>
             <button
-              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground flex items-center justify-center"
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground flex items-center justify-center flex-shrink-0"
               onClick={() => deleteTask(task.id)}
             >
               <X className="h-4 w-4" />

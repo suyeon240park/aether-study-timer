@@ -128,13 +128,13 @@ export default function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
     <TooltipProvider>
       <div className="flex flex-col gap-4">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <Button variant="outline" size="sm" onClick={prevYear} className="h-8 w-8 p-0">
               <ChevronLeft className="h-4 w-4" />
               <span className="sr-only">Previous Year</span>
             </Button>
 
-            <div className="text-lg font-medium">{year}</div>
+            <div className="text-lg font-medium min-w-[4rem] text-center">{year}</div>
 
             <Button
               variant="outline"
@@ -162,8 +162,8 @@ export default function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
           </div>
         </div>
 
-        <div className="relative overflow-x-auto">
-          <div className="min-w-max">
+        <div className="relative overflow-x-auto pb-2 -mb-2 scrollbar-thin">
+          <div className="min-w-max inline-block">
             {/* Month labels - now with proper spacing */}
             <div className="flex h-6 pl-16 mb-2">
               {monthPositions.map(({ month, weekIndex }) => (

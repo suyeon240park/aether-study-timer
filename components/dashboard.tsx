@@ -3,23 +3,18 @@
 import { useState, useRef, useEffect } from "react"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Diamond, Settings, LogOut, LogIn, Music, AlertTriangle, Lock, Youtube } from "lucide-react"
+import { BarChart3, Settings, LogOut, LogIn, Music, AlertTriangle, Lock, Youtube, ChevronDown, Palette } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { useTheme } from "next-themes"
 import Timer from "@/components/timer"
 import LoginModal from "@/components/login-modal"
 import { useStudyData } from "@/hooks/use-study-data"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
 import StatisticsDialog from "@/components/statistics-dialog"
-import AetherDialog from "@/components/aether-dialog"
 import { useRouter } from "next/navigation"
 import TaskManager from "@/components/task-manager"
 import MusicLoader from "@/components/music-loader"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { Switch } from "@/components/ui/switch"
 import { usePreferences } from "@/hooks/use-preferences"
 import {
@@ -35,6 +30,7 @@ import {
 import { auth, database } from "@/lib/firebase"
 import { ref, remove } from "firebase/database"
 import { deleteUser } from "firebase/auth"
+import { useTimerWorker } from "@/hooks/use-timer-worker"
 
 // Add these types at the top of the file
 type TimerType = "default" | "pomodoro";
@@ -53,11 +49,57 @@ const DEFAULT_POMODORO_SETTINGS: PomodoroSettings = {
   breakInterval: 4,
 };
 
-// Helper function to play sounds
+// Audio context for reliable sound playback
+let audioContext: AudioContext | null = null;
+const audioBuffers: Map<string, AudioBuffer> = new Map();
+
+// Initialize audio context on first user interaction
+const initAudioContext = () => {
+  if (!audioContext && typeof window !== 'undefined') {
+    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+  return audioContext;
+};
+
+// Preload audio files
+const preloadAudio = async (src: string) => {
+  if (audioBuffers.has(src)) return;
+  
+  const ctx = initAudioContext();
+  if (!ctx) return;
+  
+  try {
+    const response = await fetch(src);
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    audioBuffers.set(src, audioBuffer);
+  } catch (error) {
+    console.error('Error preloading audio:', error);
+  }
+};
+
+// Helper function to play sounds (works even in background)
 const playSound = (src: string, delay: number = 0) => {
   setTimeout(() => {
-    const sound = new Audio(src);
-    sound.play().catch((err) => console.error("Error playing sound:", err));
+    const ctx = initAudioContext();
+    
+    if (ctx && audioBuffers.has(src)) {
+      // Use Web Audio API for reliable playback
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffers.get(src)!;
+      source.connect(ctx.destination);
+      
+      // Resume context if suspended (required after tab goes to background)
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => source.start(0));
+      } else {
+        source.start(0);
+      }
+    } else {
+      // Fallback to Audio element
+      const sound = new Audio(src);
+      sound.play().catch((err) => console.error("Error playing sound:", err));
+    }
   }, delay);
 };
 
@@ -73,19 +115,61 @@ const TimerTypeButton = ({ type, active, onClick }: { type: TimerType; active: b
         : "bg-transparent hover:bg-muted"
     )}
   >
-    {type === "default" ? "Default Timer" : "Pomodoro Timer"}
+    {type === "default" ? "Countdown Timer" : "Pomodoro Timer"}
   </button>
 );
 
+const THEMES = [
+  { name: "light", label: "Light", color: "bg-gradient-to-br from-gray-50 to-gray-200 border border-gray-300" },
+  { name: "dark", label: "Dark", color: "bg-gradient-to-br from-gray-800 to-gray-950" },
+  { name: "rose", label: "Rose", color: "bg-gradient-to-br from-pink-200 to-rose-300" },
+  { name: "forest", label: "Forest", color: "bg-gradient-to-br from-emerald-700 to-green-900" },
+  { name: "midnight", label: "Midnight", color: "bg-gradient-to-br from-slate-800 to-indigo-950" },
+  { name: "nord", label: "Nord", color: "bg-gradient-to-br from-slate-100 to-cyan-200" },
+];
+
 export default function Dashboard() {
-  const { studyData, addSession, setGoal, dailyGoal, aethers, addAethers, syncWithFirebase } = useStudyData();
+  const { studyData, addSession, setGoal, dailyGoal, syncWithFirebase } = useStudyData();
   const { user, signOut } = useAuth();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const router = useRouter();
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
-  const [aetherDialogOpen, setAetherDialogOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
-  const [loginReason, setLoginReason] = useState<"statistics" | "rewards" | "">("");
+  const [loginReason, setLoginReason] = useState<"statistics" | "">("");
+  const [mounted, setMounted] = useState(false);
+
+  // Handle hydration - theme is undefined during SSR
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Preload audio on first user interaction
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      // Initialize audio context and preload sounds
+      initAudioContext();
+      preloadAudio('/sounds/session-end.mp3');
+      preloadAudio('/sounds/break-end.mp3');
+      preloadAudio('/sounds/task-complete.mp3');
+      preloadAudio('/sounds/aether-collect.mp3');
+      
+      // Remove listeners after first interaction
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+
+    document.addEventListener('click', handleFirstInteraction);
+    document.addEventListener('keydown', handleFirstInteraction);
+    document.addEventListener('touchstart', handleFirstInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+  }, []);
   
   const {
     isLoading,
@@ -96,6 +180,9 @@ export default function Dashboard() {
     isMusicEnabled,
     setIsMusicEnabled,
   } = usePreferences();
+
+  // Timer worker for accurate background timing
+  const { startTimer: startWorkerTimer, stopTimer: stopWorkerTimer, isSupported: isWorkerSupported } = useTimerWorker();
 
   // Timer state
   const [timerMinutes, setTimerMinutes] = useState(25);
@@ -109,9 +196,6 @@ export default function Dashboard() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerEndTimeRef = useRef<number | null>(null);
-
-  const [aetherButtonPulse, setAetherButtonPulse] = useState(false);
-  const aetherButtonRef = useRef<HTMLButtonElement>(null);
   const timerRef = useRef<HTMLDivElement>(null);
 
   const [pomodoroSession, setPomodoroSession] = useState({
@@ -121,6 +205,13 @@ export default function Dashboard() {
   });
 
   const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
+  const [dangerZoneOpen, setDangerZoneOpen] = useState(false);
+
+  // Refs for completion handlers to avoid stale closures in event listeners
+  const completionHandlerRef = useRef<{
+    handleSessionComplete: (minutes: number, skipNotification?: boolean) => Promise<void>;
+    handlePomodoroSessionComplete: (minutes: number) => Promise<void>;
+  } | null>(null);
 
   // Timer handlers
   const handleTimerStart = () => {
@@ -146,9 +237,11 @@ export default function Dashboard() {
     // Don't allow pause during transition
     if (isTransitioning) return;
     
-    // Store the current elapsed time when pausing
+    // Stop worker and interval timers
+    stopWorkerTimer();
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
     }
     setIsTimerPaused(true);
   };
@@ -157,8 +250,11 @@ export default function Dashboard() {
     // Don't allow reset during transition
     if (isTransitioning) return;
     
+    // Stop worker and interval timers
+    stopWorkerTimer();
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
     }
     setIsTimerActive(false);
     setIsTimerPaused(false);
@@ -169,57 +265,15 @@ export default function Dashboard() {
     setSessionStartTime(null);
   };
 
-  // Handle session completion with aether animation and sounds
-  const handleSessionComplete = async (minutes: number) => {
-    // Play session end sound and wait for it to finish (approximately 1 second)
-    playSound("/sounds/session-end.mp3");
+  // Handle session completion (skipSound is used when called from Pomodoro handler which plays its own sound)
+  const handleSessionComplete = async (minutes: number, skipSound: boolean = false) => {
+    // Play session end sound (only for countdown timer, Pomodoro plays its own)
+    if (!skipSound) {
+      playSound("/sounds/session-end.mp3");
+    }
 
     // Store session data to database
     addSession(minutes);
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Calculate if new aethers were earned
-    const aethersEarned = Math.floor((minutes + calculateMinutesForNextAether()) / 60);
-
-    if (aethersEarned > 0) {
-      addAethers(aethersEarned);
-
-      // Play overlapping aether collect sounds rapidly
-      for (let i = 0; i < aethersEarned; i++) {
-        playSound("/sounds/aether-collect.mp3", 800 + i * 400); // Play sounds with 400ms overlap
-      }
-
-      // Animate each aether earned sequentially
-      for (let i = 0; i < aethersEarned; i++) {
-        // Wait for previous animation to complete
-        await new Promise<void>((resolve) => {
-          setTimeout(() => {
-            // Trigger pulse animation only
-            setAetherButtonPulse(true);
-            
-            // Reset pulse after animation
-            setTimeout(() => {
-              setAetherButtonPulse(false);
-              resolve();
-            }, 200);
-          }, i === 0 ? 800 : 200); // Start first animation at 800ms, then space others out by 200ms
-        });
-      }
-    }
-  };
-
-  // Calculate minutes collected for the next aether
-  const calculateMinutesForNextAether = () => {
-    // Get total minutes from completed sessions
-    const completedMinutes = studyData.sessions.reduce((acc: number, session: { minutes: number }) => acc + session.minutes, 0);
-    
-    // Add current session's elapsed time if timer is active
-    const currentSessionMinutes = isTimerActive ? Math.floor(timerElapsedTime / 60) : 0;
-    const totalMinutes = completedMinutes + currentSessionMinutes;
-    
-    // Calculate minutes in current block (0-59)
-    return totalMinutes % 60;
   };
 
   // Handle opening statistics when not logged in
@@ -233,19 +287,6 @@ export default function Dashboard() {
     // User is logged in, sync data and open statistics
     syncWithFirebase();
     setStatsOpen(true);
-  };
-
-  // Handle opening the Aether dialog
-  const handleOpenAethers = () => {
-    if (!user) {
-      setLoginReason("rewards");
-      setLoginModalOpen(true);
-      return;
-    }
-
-    // User is logged in, sync data and open Aether dialog
-    syncWithFirebase();
-    setAetherDialogOpen(true);
   };
 
   // Update the handlePomodoroSettingChange function
@@ -290,8 +331,9 @@ export default function Dashboard() {
       playSound("/sounds/break-end.mp3");
     } else {
       playSound("/sounds/session-end.mp3");
-      // Only store focus sessions and give aethers
-      await handleSessionComplete(minutes);
+      
+      // Only store focus sessions (skip sound since we already played it)
+      await handleSessionComplete(minutes, true);
     }
 
     await moveToNextSession();
@@ -394,6 +436,14 @@ export default function Dashboard() {
     handlePomodoroSessionComplete(0);
   };
 
+  // Keep completion handler ref updated to avoid stale closures
+  useEffect(() => {
+    completionHandlerRef.current = {
+      handleSessionComplete,
+      handlePomodoroSessionComplete,
+    };
+  });
+
   // Handle timer type changes
   useEffect(() => {
     handleTimerReset();
@@ -413,7 +463,7 @@ export default function Dashboard() {
     }
   }, [timerType, pomodoroSettings.breakInterval]);
 
-  // Timer effect
+  // Timer effect - uses Web Worker for accurate background timing
   useEffect(() => {
     // Skip setup during transition
     if (isTransitioning) {
@@ -425,6 +475,12 @@ export default function Dashboard() {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
+    
+    // Stop worker timer when not active
+    if (!isTimerActive || isTimerPaused) {
+      stopWorkerTimer();
+      return;
+    }
 
     if (isTimerActive && !isTimerPaused) {
       if (!timerEndTimeRef.current) {
@@ -433,49 +489,145 @@ export default function Dashboard() {
         timerEndTimeRef.current = Date.now() + (totalSeconds * 1000) + 100;
       }
 
-      // Use a small initial delay before starting the interval
-      // This prevents the first tick from happening too quickly
-      const initialDelay = setTimeout(() => {
-        timerIntervalRef.current = setInterval(() => {
-          const now = Date.now();
-          const remaining = Math.max(0, timerEndTimeRef.current! - now);
+      const endTime = timerEndTimeRef.current;
+      const totalInitialSeconds = timerInitialTime.minutes * 60 + timerInitialTime.seconds;
+
+      // Use Web Worker for timer (not throttled in background)
+      if (isWorkerSupported) {
+        startWorkerTimer(endTime, {
+          onTick: (remaining: number) => {
+            const newMinutes = Math.floor(remaining / 1000 / 60);
+            const newSeconds = Math.floor((remaining / 1000) % 60);
+            const remainingSeconds = newMinutes * 60 + newSeconds;
+            const newElapsedTime = totalInitialSeconds - remainingSeconds;
+
+            setTimerMinutes(newMinutes);
+            setTimerSeconds(newSeconds);
+            setTimerElapsedTime(newElapsedTime);
+          },
+          onComplete: () => {
+            timerEndTimeRef.current = null;
+            const totalMinutes = Math.floor(totalInitialSeconds / 60);
+            
+            // Use ref to get latest handlers to avoid stale closures
+            if (completionHandlerRef.current) {
+              if (timerType === "pomodoro") {
+                completionHandlerRef.current.handlePomodoroSessionComplete(totalMinutes);
+              } else {
+                setIsTimerActive(false);
+                completionHandlerRef.current.handleSessionComplete(totalMinutes);
+              }
+            }
+          }
+        });
+      } else {
+        // Fallback to setInterval for browsers without Worker support
+        const initialDelay = setTimeout(() => {
+          timerIntervalRef.current = setInterval(() => {
+            const now = Date.now();
+            const remaining = Math.max(0, timerEndTimeRef.current! - now);
+            
+            const newMinutes = Math.floor(remaining / 1000 / 60);
+            const newSeconds = Math.floor((remaining / 1000) % 60);
+            const remainingSeconds = newMinutes * 60 + newSeconds;
+            const newElapsedTime = totalInitialSeconds - remainingSeconds;
+
+            setTimerMinutes(newMinutes);
+            setTimerSeconds(newSeconds);
+            setTimerElapsedTime(newElapsedTime);
+
+            if (remaining === 0) {
+              clearInterval(timerIntervalRef.current as NodeJS.Timeout);
+              timerIntervalRef.current = null;
+              timerEndTimeRef.current = null;
+              const totalMinutes = Math.floor(newElapsedTime / 60);
+              
+              if (completionHandlerRef.current) {
+                if (timerType === "pomodoro") {
+                  completionHandlerRef.current.handlePomodoroSessionComplete(totalMinutes);
+                } else {
+                  setIsTimerActive(false);
+                  completionHandlerRef.current.handleSessionComplete(totalMinutes);
+                }
+              }
+            }
+          }, 100);
+        }, 200);
+
+        return () => {
+          clearTimeout(initialDelay);
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
+        };
+      }
+    }
+
+    return () => {
+      stopWorkerTimer();
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, [isTimerActive, isTimerPaused, timerRestartKey, isTransitioning, isWorkerSupported, startWorkerTimer, stopWorkerTimer, timerType, timerInitialTime]);
+
+  // Handle visibility change - check if timer completed while tab was in background
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && timerEndTimeRef.current) {
+        const now = Date.now();
+        const remaining = timerEndTimeRef.current - now;
+        
+        // Get current timer state from refs to avoid stale closures
+        // Note: We read isTimerActive and isTimerPaused from the closure, 
+        // but they're stable since we re-attach listener when they change
+        
+        // If timer should have completed while in background
+        if (remaining <= 0) {
+          // Clear the interval
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
           
+          // Calculate elapsed time
+          const totalInitialSeconds = timerInitialTime.minutes * 60 + timerInitialTime.seconds;
+          const totalMinutes = Math.floor(totalInitialSeconds / 60);
+          
+          // Update display to show 0:00
+          setTimerMinutes(0);
+          setTimerSeconds(0);
+          setTimerElapsedTime(totalInitialSeconds);
+          timerEndTimeRef.current = null;
+          
+          // Trigger completion using ref to get latest handlers
+          if (completionHandlerRef.current) {
+            if (timerType === "pomodoro") {
+              completionHandlerRef.current.handlePomodoroSessionComplete(totalMinutes);
+            } else {
+              setIsTimerActive(false);
+              completionHandlerRef.current.handleSessionComplete(totalMinutes);
+            }
+          }
+        } else if (!isTimerPaused && !isTransitioning) {
+          // Update timer display to current remaining time (only if not paused)
           const newMinutes = Math.floor(remaining / 1000 / 60);
           const newSeconds = Math.floor((remaining / 1000) % 60);
+          setTimerMinutes(newMinutes);
+          setTimerSeconds(newSeconds);
           
           const totalInitialSeconds = timerInitialTime.minutes * 60 + timerInitialTime.seconds;
           const remainingSeconds = newMinutes * 60 + newSeconds;
-          const newElapsedTime = totalInitialSeconds - remainingSeconds;
-
-          setTimerMinutes(newMinutes);
-          setTimerSeconds(newSeconds);
-          setTimerElapsedTime(newElapsedTime);
-
-          if (remaining === 0) {
-            clearInterval(timerIntervalRef.current as NodeJS.Timeout);
-            timerIntervalRef.current = null;
-            timerEndTimeRef.current = null;
-            const totalMinutes = Math.floor(newElapsedTime / 60);
-            
-            if (timerType === "pomodoro") {
-              handlePomodoroSessionComplete(totalMinutes);
-            } else {
-              setIsTimerActive(false);
-              handleSessionComplete(totalMinutes);
-            }
-          }
-        }, 100);
-      }, 200);
-
-      return () => {
-        clearTimeout(initialDelay);
-        if (timerIntervalRef.current) {
-          clearInterval(timerIntervalRef.current);
-          timerIntervalRef.current = null;
+          setTimerElapsedTime(totalInitialSeconds - remainingSeconds);
         }
-      };
-    }
-  }, [isTimerActive, isTimerPaused, timerRestartKey, isTransitioning]);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isTimerPaused, isTransitioning, timerType, timerInitialTime]);
 
   // Handle successful login
   useEffect(() => {
@@ -483,12 +635,20 @@ export default function Dashboard() {
       // User just logged in, open statistics if that's what they were trying to access
       if (loginReason === "statistics") {
         setStatsOpen(true);
-      } else if (loginReason === "rewards") {
-        setAetherDialogOpen(true);
       }
       setLoginReason("");
     }
   }, [user, loginReason]);
+
+  // Handle login modal opening from music widget
+  useEffect(() => {
+    const handleOpenLoginModal = () => {
+      setLoginModalOpen(true);
+    };
+
+    window.addEventListener('openLoginModal', handleOpenLoginModal);
+    return () => window.removeEventListener('openLoginModal', handleOpenLoginModal);
+  }, []);
 
   // Handle account deletion
   const handleDeleteAccount = async () => {
@@ -518,36 +678,10 @@ export default function Dashboard() {
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top navigation bar */}
-      <header className="flex items-center justify-between p-4 border-b">
-        <h1 className="text-2xl font-bold">Aether Timer</h1>
+      <header className="flex items-center justify-between px-3 py-3 sm:px-4 sm:py-4 border-b safe-area-inset-top safe-area-inset-left safe-area-inset-right">
+        <h1 className="text-lg sm:text-xl md:text-2xl font-bold truncate text-primary">Aether Timer</h1>
 
-        <div className="flex items-center gap-2">
-          {/* Aethers (Rewards) Button with Tooltip */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  ref={aetherButtonRef}
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "relative transition-all duration-1000",
-                    aetherButtonPulse && "animate-single-pulse"
-                  )}
-                  onClick={handleOpenAethers}
-                >
-                  <Diamond className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                    {aethers}
-                  </span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{calculateMinutesForNextAether()}/60 min to next aether</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {/* Statistics Button */}
           <Button variant="ghost" size="icon" onClick={handleOpenStatistics}>
             <BarChart3 className="h-5 w-5" />
@@ -561,7 +695,7 @@ export default function Dashboard() {
               </Button>
             </SheetTrigger>
             <SheetContent className="w-full sm:max-w-md flex flex-col h-full" aria-describedby="">
-              <SheetTitle className="text-3xl font-bold">Settings</SheetTitle>
+              <SheetTitle className="text-2xl sm:text-3xl font-bold text-primary">Settings</SheetTitle>
               <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 <div className="space-y-6 pt-6 px-1">
                   <div className="space-y-4">
@@ -726,148 +860,72 @@ export default function Dashboard() {
                         onCheckedChange={setIsMusicEnabled}
                       />
                     </div>
-                    
-                    {isMusicEnabled && (
-                      <div className="mt-4 space-y-3">
-                        <div className="relative space-y-2">
-                          <h4 className="text-sm font-medium">Custom YouTube Playlist</h4>
-                          
-                          {user ? (
-                            <div className="space-y-2">
-                              <div className="flex gap-2">
-                                <input
-                                  type="text"
-                                  placeholder="YouTube URL (e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ)"
-                                  className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                  id="custom-youtube-id"
-                                />
-                                <Button 
-                                  size="sm"
-                                  onClick={() => {
-                                    const input = document.getElementById('custom-youtube-id') as HTMLInputElement;
-                                    const url = input.value.trim();
-                                    
-                                    if (url) {
-                                      // Extract video ID from various YouTube URL formats
-                                      let videoId = '';
-                                      
-                                      // Handle standard youtube.com URLs
-                                      const standardMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/e\/|youtube\.com\/user\/[^\/]+\/[^\/]+\/|youtube\.com\/[^\/]+\/[^\/]+\/|youtube\.com\/attribution_link\?a=.+?&(?:amp;)?u=\/watch\?v=|youtube-nocookie\.com\/watch\?v=|youtube\.com\/shorts\/)([^&?\/\s]+)/);
-                                      
-                                      if (standardMatch && standardMatch[1]) {
-                                        videoId = standardMatch[1];
-                                      }
-                                      
-                                      if (videoId) {
-                                        const customChannels = JSON.parse(localStorage.getItem('customYoutubeChannels') || '[]');
-                                        
-                                        // Check if video ID already exists
-                                        if (!customChannels.some((channel: any) => channel.id === videoId)) {
-                                          // Default channel name
-                                          let channelName = `Custom ${customChannels.length + 1}`;
-                                          
-                                          // Try to fetch video title using oEmbed
-                                          const addChannel = (name: string) => {
-                                            const newChannel = { id: videoId, name: name };
-                                            customChannels.push(newChannel);
-                                            localStorage.setItem('customYoutubeChannels', JSON.stringify(customChannels));
-                                            
-                                            // Trigger storage event for components listening in the same window
-                                            window.dispatchEvent(new StorageEvent('storage', {
-                                              key: 'customYoutubeChannels',
-                                              newValue: JSON.stringify(customChannels)
-                                            }));
-                                            
-                                            input.value = '';
-                                          };
-                                          
-                                          // Try to get video title
-                                          fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
-                                            .then(response => {
-                                              if (!response.ok) throw new Error('Failed to fetch video info');
-                                              return response.json();
-                                            })
-                                            .then(data => {
-                                              // Use video title if available
-                                              if (data && data.title) {
-                                                // Truncate title if too long
-                                                const title = data.title.length > 25 
-                                                  ? data.title.substring(0, 22) + '...' 
-                                                  : data.title;
-                                                addChannel(title);
-                                              } else {
-                                                addChannel(channelName);
-                                              }
-                                            })
-                                            .catch(() => {
-                                              // Use default name if fetching failed
-                                              addChannel(channelName);
-                                            });
-                                        } else {
-                                          alert("This YouTube video has already been added.");
-                                        }
-                                      } else {
-                                        // Show error for invalid URL
-                                        alert("Invalid YouTube URL. Please enter a valid YouTube URL.");
-                                      }
-                                    }
-                                  }}
-                                >
-                                  Add
-                                </Button>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                Add a YouTube video URL to create a custom study music playlist.
-                              </p>
-                            </div>
-                          ) : (
-                            <div 
-                              className="relative overflow-hidden rounded-lg border border-dashed p-6 backdrop-blur-[2px]"
-                              onClick={() => setLoginModalOpen(true)}
-                            >
-                              <div className="absolute inset-0 bg-background/80" />
-                              <div className="relative flex flex-col items-center justify-center gap-2 text-center">
-                                <div className="rounded-full bg-primary/10 p-3">
-                                  <Lock className="h-6 w-6 text-primary" />
-                                </div>
-                                <div className="space-y-1">
-                                  <h4 className="text-sm font-medium">Unlock Custom Music</h4>
-                                  <p className="text-sm text-muted-foreground">
-                                    Sign in to add unlimited YouTube music playlists to your collection
-                                  </p>
-                                </div>
-                                <Button 
-                                  variant="secondary" 
-                                  size="sm" 
-                                  className="mt-2"
-                                >
-                                  <LogIn className="mr-2 h-4 w-4" />
-                                  Sign in
-                                </Button>
-                              </div>
-                              <div className="absolute -right-6 -top-6 opacity-10">
-                                <Youtube className="h-24 w-24" />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                  </div>
+
+                  {/* Theme Selection */}
+                  <div className="pt-6 border-t">
+                    <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                      <Palette className="h-4 w-4" />
+                      Theme
+                    </h4>
+                    <div className="grid grid-cols-3 gap-3">
+                      {THEMES.map((t) => {
+                        const isActive = mounted && (theme === t.name || resolvedTheme === t.name);
+                        return (
+                          <button
+                            key={t.name}
+                            onClick={() => setTheme(t.name)}
+                            className={cn(
+                              "flex flex-col items-center gap-2 p-3 rounded-xl border-2 hover:scale-105 hover:shadow-lg",
+                              isActive
+                                ? "border-primary ring-2 ring-primary/30 shadow-md"
+                                : "border-border hover:border-primary/50"
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "w-10 h-10 rounded-full shadow-md",
+                                t.color
+                              )}
+                              data-no-transition
+                            />
+                            <span className={cn(
+                              "text-xs font-medium",
+                              isActive && "text-primary font-semibold"
+                            )}>{t.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Delete Account Section */}
                   {user && (
-                    <div className="pt-6 border-t">
-                      <h4 className="text-sm font-medium mb-4">Danger Zone</h4>
-                      <Button
-                        variant="destructive"
-                        className="w-full flex items-center gap-2"
-                        onClick={() => setDeleteAccountDialogOpen(true)}
-                      >
-                        <AlertTriangle className="h-4 w-4" />
-                        Delete My Account
-                      </Button>
-                    </div>
+                    <Collapsible 
+                      open={dangerZoneOpen} 
+                      onOpenChange={setDangerZoneOpen}
+                      className="pt-6 border-t"
+                    >
+                      <CollapsibleTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          className="w-full flex items-center justify-between p-2 h-auto text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <span>Advanced Settings</span>
+                          <ChevronDown className={`h-3 w-3 transition-transform ${dangerZoneOpen ? 'rotate-180' : ''}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteAccountDialogOpen(true)}
+                        >
+                          Delete Account
+                        </Button>
+                      </CollapsibleContent>
+                    </Collapsible>
                   )}
                 </div>
               </div>
@@ -877,7 +935,7 @@ export default function Dashboard() {
       </header>
 
       {/* Main content - Timer */}
-      <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-y-auto">
+      <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-4 overflow-y-auto">
         <div ref={timerRef}>
           <Timer
             onSessionComplete={timerType === "pomodoro" ? handlePomodoroSessionComplete : handleSessionComplete}
@@ -900,7 +958,7 @@ export default function Dashboard() {
             onSkipBreak={handleSkipBreak}
           />
         </div>
-        <div className="mt-8 max-w-md w-full mx-auto">
+        <div className="mt-6 sm:mt-8 max-w-md w-full mx-auto">
           <TaskManager />
         </div>
       </div>
@@ -917,12 +975,6 @@ export default function Dashboard() {
         onGoalChange={setGoal}
       />
 
-      <AetherDialog
-        open={aetherDialogOpen}
-        onOpenChange={setAetherDialogOpen}
-        studyData={studyData}
-      />
-
       {/* Login Modal */}
       <LoginModal
         open={loginModalOpen}
@@ -931,8 +983,6 @@ export default function Dashboard() {
         onLoginComplete={() => {
           if (loginReason === "statistics") {
             setStatsOpen(true);
-          } else if (loginReason === "rewards") {
-            setAetherDialogOpen(true);
           }
           setLoginReason("");
         }}

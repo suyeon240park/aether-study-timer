@@ -581,18 +581,18 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
   }, [studyData.totalStudyTime])
 
   return (
-    <div className="p-4 md:p-6">
+    <div className="p-4 sm:p-6 md:p-8 lg:p-10">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 lg:gap-10 mb-6 sm:mb-8 md:mb-10">
         <Card className="shadow-md">
           <CardContent className="pt-6">
             <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-lg font-medium mb-1">Today's Progress</h3>
-                <div className="text-3xl font-bold text-primary">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-medium mb-1">Today's Progress</h3>
+                <div className="text-2xl sm:text-3xl font-bold text-primary">
                   {Math.floor(todayProgress.minutes / 60)}h {todayProgress.minutes % 60}m
                 </div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-xs sm:text-sm text-muted-foreground">
                   Goal: {dailyGoal}h ({todayProgress.percentage}%)
                 </div>
               </div>
@@ -625,14 +625,14 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
 
         <Card className="shadow-md">
           <CardContent className="pt-6">
-            <div className="flex items-start gap-4">
-              <div className="bg-primary/20 p-3 rounded-full">
-                <Flame className="h-6 w-6 text-primary" />
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="bg-primary/20 p-2 sm:p-3 rounded-full flex-shrink-0">
+                <Flame className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
-              <div>
-                <h3 className="text-lg font-medium mb-1">Current Streak</h3>
-                <div className="text-3xl font-bold text-primary">{calculateStreak()} days</div>
-                <div className="text-sm text-muted-foreground mt-1">Best streak: {bestStreak} days</div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-medium mb-1">Current Streak</h3>
+                <div className="text-2xl sm:text-3xl font-bold text-primary">{calculateStreak()} days</div>
+                <div className="text-xs sm:text-sm text-muted-foreground mt-1">Best: {bestStreak} days</div>
               </div>
             </div>
           </CardContent>
@@ -640,17 +640,17 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
 
         <Card className="shadow-md">
           <CardContent className="pt-6">
-            <div className="flex items-start gap-4">
-              <div className="bg-primary/20 p-3 rounded-full">
-                <Clock className="h-6 w-6 text-primary" />
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="bg-primary/20 p-2 sm:p-3 rounded-full flex-shrink-0">
+                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
-              <div>
-                <h3 className="text-lg font-medium mb-1">Weekly Average</h3>
-                <div className="text-3xl font-bold text-primary">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-medium mb-1">Weekly Average</h3>
+                <div className="text-2xl sm:text-3xl font-bold text-primary truncate">
                   {Math.floor(weeklyStats.averageMinutes / 60)}h {weeklyStats.averageMinutes % 60}m
                 </div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Best day: {weeklyStats.bestDay.date} ({Math.floor(weeklyStats.bestDay.minutes / 60)}h {weeklyStats.bestDay.minutes % 60}m)
+                <div className="text-xs sm:text-sm text-muted-foreground mt-1 truncate">
+                  Best: {weeklyStats.bestDay.date} ({Math.floor(weeklyStats.bestDay.minutes / 60)}h {weeklyStats.bestDay.minutes % 60}m)
                 </div>
               </div>
             </div>
@@ -659,8 +659,8 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
       </div>
 
       {/* Tabs and Navigation */}
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+      <div className="mb-6 sm:mb-8 md:mb-10">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
           <Tabs
             defaultValue="daily"
             className="w-full sm:w-auto"
@@ -678,27 +678,27 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
             </TabsList>
           </Tabs>
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={goBack} className="h-9 px-3">
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Previous
+          <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto justify-center sm:justify-end">
+            <Button variant="outline" size="sm" onClick={goBack} className="h-8 sm:h-9 px-2 sm:px-3 flex-shrink-0">
+              <ChevronLeft className="h-4 w-4" />
+              <span className="sr-only sm:not-sr-only sm:ml-1">Previous</span>
             </Button>
-            <div className="text-sm font-medium px-2 min-w-[180px] text-center">{getTimePeriodLabel()}</div>
-            <Button variant="outline" size="sm" onClick={goForward} disabled={timeOffset === 0} className="h-9 px-3">
-              Next
-              <ChevronRight className="h-4 w-4 ml-1" />
+            <div className="text-[10px] sm:text-sm font-medium px-1 sm:px-2 min-w-0 max-w-[140px] sm:max-w-[200px] text-center truncate">{getTimePeriodLabel()}</div>
+            <Button variant="outline" size="sm" onClick={goForward} disabled={timeOffset === 0} className="h-8 sm:h-9 px-2 sm:px-3 flex-shrink-0">
+              <span className="sr-only sm:not-sr-only sm:mr-1">Next</span>
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </div>
 
       {/* Bar Chart */}
-      <Card className="shadow-md mb-6">
+      <Card className="shadow-md mb-6 sm:mb-8 md:mb-10">
         <CardContent className="pt-6">
-          <h3 className="text-lg font-medium mb-4">Study Time</h3>
-          <div className="h-[300px]">
+          <h3 className="text-base sm:text-lg font-medium mb-4">Study Time</h3>
+          <div className="h-[250px] sm:h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={getActiveData()} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+              <BarChart data={getActiveData()} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted)/0.5)" />
                 <XAxis
                   dataKey="date"
@@ -710,6 +710,28 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
                   tick={{ fontSize: 12 }}
                   tickFormatter={(value) => (value >= 60 ? `${Math.floor(value / 60)}h` : `${value}m`)}
                   stroke="hsl(var(--foreground)/0.7)"
+                  domain={[0, (dataMax: number) => {
+                    // Calculate goal based on active tab
+                    let goalMinutes: number;
+                    switch (activeTab) {
+                      case "weekly":
+                        goalMinutes = dailyGoal * 60 * 7; // Weekly goal
+                        break;
+                      case "monthly":
+                        goalMinutes = dailyGoal * 60 * 30; // Monthly goal (approx)
+                        break;
+                      case "yearly":
+                        goalMinutes = dailyGoal * 60 * 365; // Yearly goal
+                        break;
+                      case "daily":
+                      default:
+                        goalMinutes = dailyGoal * 60; // Daily goal
+                    }
+                    // Return the higher of goal or max data value, rounded up nicely
+                    const maxValue = Math.max(goalMinutes, dataMax);
+                    // Round up to nearest hour (60 minutes)
+                    return Math.ceil(maxValue / 60) * 60;
+                  }]}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar
@@ -726,9 +748,9 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
       </Card>
 
       {/* Activity Heatmap */}
-      <Card className="shadow-md">
-        <CardContent className="pt-6">
-          <h3 className="text-lg font-medium mb-4">Activity Heatmap</h3>
+      <Card className="shadow-md overflow-hidden">
+        <CardContent className="pt-6 overflow-x-auto">
+          <h3 className="text-base sm:text-lg font-medium mb-4">Activity Heatmap</h3>
           <ActivityHeatmap sessions={getHeatmapData()} />
         </CardContent>
       </Card>
