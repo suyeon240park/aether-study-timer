@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { database } from "@/lib/firebase"
-import { ref, set, onValue, get } from "firebase/database"
+import { ref, set, onValue, get, update } from "firebase/database"
 import { useAuth } from "@/contexts/auth-context"
 import type { StudyData, StudySession } from "@/types/study"
 
@@ -187,15 +187,19 @@ export function useStudyData() {
     try {
       const userRef = ref(database, `users/${user.uid}`);
   
-      // Prepare the user data with required structure
-      const firebaseData = {
+      // Prepare the user data with required structure.
+      // IMPORTANT: never overwrite existing totals with an empty object.
+      const firebaseData: Record<string, unknown> = {
         dailyGoal: studyData.dailyGoal || initialStudyData.dailyGoal,
-        totalStudyTime: studyData.totalStudyTime || {},
-      };
+      }
+      const totalStudyTime = studyData.totalStudyTime || {}
+      if (Object.keys(totalStudyTime).length > 0) {
+        firebaseData.totalStudyTime = totalStudyTime
+      }
   
-      // Update the user data in Firebase
+      // Update the user data in Firebase without nuking existing fields
       try {
-        await set(userRef, firebaseData);
+        await update(userRef, firebaseData);
         setError(null);
       } catch (error) {
         console.error("Failed to sync with Firebase:", error);

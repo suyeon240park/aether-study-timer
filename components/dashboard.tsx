@@ -283,8 +283,7 @@ export default function Dashboard() {
       return;
     }
 
-    // User is logged in, sync data and open statistics
-    syncWithFirebase();
+    // User is logged in, open statistics (Firebase listener already keeps data in sync)
     setStatsOpen(true);
   };
 

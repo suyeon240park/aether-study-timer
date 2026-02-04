@@ -132,7 +132,7 @@ export default function Timer({
         )}
       </div>
 
-      <div className="flex flex-wrap justify-center gap-2 sm:gap-3 md:gap-4">
+      <div className="flex flex-wrap md:flex-nowrap justify-center gap-2 sm:gap-3 md:gap-4">
         {!isActive || isPaused ? (
           <Button onClick={onStart} size="lg" className="gap-2 h-12 sm:h-14 px-6 sm:px-8 text-base sm:text-lg">
             <Play className="h-5 w-5 sm:h-6 sm:w-6" />

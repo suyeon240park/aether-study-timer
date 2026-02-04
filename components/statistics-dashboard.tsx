@@ -558,6 +558,15 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
     }
   }, [studyData.totalStudyTime])
 
+  const clampedTodayPercentage = Math.max(0, Math.min(100, todayProgress.percentage))
+  const isTodayComplete = clampedTodayPercentage >= 99.9
+  const todayPieData = isTodayComplete
+    ? [{ value: 100 }]
+    : [
+        { value: clampedTodayPercentage },
+        { value: Math.max(0, 100 - clampedTodayPercentage) },
+      ]
+
   return (
     <div className="p-4 sm:p-6 md:p-8 lg:p-10 w-full max-w-full overflow-hidden">
       {/* Summary Cards */}
@@ -577,20 +586,21 @@ export default function StatisticsDashboard({ studyData, dailyGoal, onGoalChange
               <div className="w-20 h-20">
                 <PieChart width={80} height={80} className="focus:outline-none" tabIndex={0}>
                   <Pie
-                    data={[
-                      { value: todayProgress.percentage },
-                      { value: Math.max(0, 100 - todayProgress.percentage) }
-                    ]}
+                    data={todayPieData}
                     cx={40}
                     cy={40}
                     innerRadius={25}
                     outerRadius={35}
-                    paddingAngle={2}
+                    paddingAngle={isTodayComplete ? 0 : 2}
                     dataKey="value"
                     startAngle={90}
                     endAngle={-270}
+                    isAnimationActive={clampedTodayPercentage > 0}
+                    animationDuration={1000}
+                    stroke="none"
+                    strokeWidth={0}
                   >
-                    {[0, 1].map((index) => (
+                    {todayPieData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index]} />
                     ))}
                   </Pie>
