@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Settings, LogOut, LogIn, Music, AlertTriangle, Lock, Youtube, ChevronDown, Palette } from "lucide-react"
+import { BarChart3, Settings, LogOut, LogIn, Music, AlertTriangle, Lock, Youtube, ChevronDown, Palette, Maximize, Minimize } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useTheme } from "next-themes"
 import Timer from "@/components/timer"
@@ -139,10 +139,28 @@ export default function Dashboard() {
   const [loginReason, setLoginReason] = useState<"statistics" | "">("");
   const [mounted, setMounted] = useState(false);
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   // Handle hydration - theme is undefined during SSR
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   // Preload audio on first user interaction
   useEffect(() => {
@@ -691,6 +709,11 @@ export default function Dashboard() {
           {/* Statistics Button */}
           <Button variant="ghost" size="icon" onClick={handleOpenStatistics}>
             <BarChart3 className="h-5 w-5" />
+          </Button>
+
+          {/* Fullscreen Button */}
+          <Button variant="ghost" size="icon" onClick={toggleFullscreen}>
+            {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
           </Button>
 
           {/* Settings Button */}

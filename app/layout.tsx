@@ -6,10 +6,16 @@ import { AuthProvider } from "@/contexts/auth-context"
 import { ThemeProvider } from "@/components/theme-provider"
 
 const inter = Inter({ subsets: ["latin"] })
+const siteUrl = new URL("https://aether-timer.com")
 
 export const metadata: Metadata = {
+  metadataBase: siteUrl,
+  applicationName: "Aether Study Timer",
   title: "Aether Study Timer",
   description: "A minimalistic Pomodoro study timer designed to help you focus, track study habits, and boost motivation through a unique reward system.",
+  alternates: {
+    canonical: "/",
+  },
   icons: {
     icon: [
       { url: "/favicon/favicon.ico" },
@@ -18,7 +24,7 @@ export const metadata: Metadata = {
       { url: "/favicon/android-chrome-192x192.png", sizes: "192x192", type: "image/png" },
       { url: "/favicon/android-chrome-512x512.png", sizes: "512x512", type: "image/png" },
     ],
-    shortcut: "/favicon.ico",
+    shortcut: "/favicon/favicon.ico",
     apple: [
       { url: "/favicon/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
@@ -26,6 +32,8 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Aether Study Timer",
     description: "A minimalistic Pomodoro study timer designed to help you focus, track study habits, and boost motivation through a unique reward system.",
+    url: "/",
+    siteName: "Aether Study Timer",
     images: [
       {
         url: "/favicon/android-chrome-512x512.png",
@@ -80,4 +88,3 @@ export default function RootLayout({
     </html>
   )
 }
-
