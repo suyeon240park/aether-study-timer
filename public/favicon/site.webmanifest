@@ -1,8 +1,9 @@
 {
   "name": "Aether Study Timer",
   "short_name": "Aether Timer",
-  "start_url": "/",
-  "scope": "/",
+  "id": "https://aether-timer.com/",
+  "start_url": "https://aether-timer.com/",
+  "scope": "https://aether-timer.com/",
   "icons": [
     {
       "src": "/favicon/android-chrome-192x192.png",

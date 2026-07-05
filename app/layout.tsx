@@ -6,7 +6,7 @@ import { AuthProvider } from "@/contexts/auth-context"
 import { ThemeProvider } from "@/components/theme-provider"
 
 const inter = Inter({ subsets: ["latin"] })
-const siteUrl = new URL("https://aether-timer.com")
+const siteUrl = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://aether-timer.com")
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,

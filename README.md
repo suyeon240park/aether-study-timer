@@ -20,6 +20,7 @@ A study timer web app with Pomodoro support and analytics. Track your progress w
 Create a `.env.local` in the project root with your Firebase config (from Firebase Console → Project settings → General → Your apps):
 
 ```env
+NEXT_PUBLIC_SITE_URL=https://aether-timer.com
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 NEXT_PUBLIC_FIREBASE_DATABASE_URL=
