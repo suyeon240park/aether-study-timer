@@ -4,9 +4,10 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/contexts/auth-context"
 import { ThemeProvider } from "@/components/theme-provider"
+import { getSiteUrl, withBasePath } from "@/lib/site-paths"
 
 const inter = Inter({ subsets: ["latin"] })
-const siteUrl = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://aether-timer.com")
+const siteUrl = getSiteUrl()
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,
@@ -18,15 +19,15 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon/favicon.ico" },
-      { url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/favicon/android-chrome-192x192.png", sizes: "192x192", type: "image/png" },
-      { url: "/favicon/android-chrome-512x512.png", sizes: "512x512", type: "image/png" },
+      { url: withBasePath("/favicon/favicon.ico") },
+      { url: withBasePath("/favicon/favicon-16x16.png"), sizes: "16x16", type: "image/png" },
+      { url: withBasePath("/favicon/favicon-32x32.png"), sizes: "32x32", type: "image/png" },
+      { url: withBasePath("/favicon/android-chrome-192x192.png"), sizes: "192x192", type: "image/png" },
+      { url: withBasePath("/favicon/android-chrome-512x512.png"), sizes: "512x512", type: "image/png" },
     ],
-    shortcut: "/favicon/favicon.ico",
+    shortcut: withBasePath("/favicon/favicon.ico"),
     apple: [
-      { url: "/favicon/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: withBasePath("/favicon/apple-touch-icon.png"), sizes: "180x180", type: "image/png" },
     ],
   },
   openGraph: {
@@ -36,7 +37,7 @@ export const metadata: Metadata = {
     siteName: "Aether Study Timer",
     images: [
       {
-        url: "/favicon/android-chrome-512x512.png",
+        url: withBasePath("/favicon/android-chrome-512x512.png"),
         width: 512,
         height: 512,
         alt: "Aether Study Timer",
@@ -47,9 +48,9 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Aether Study Timer",
     description: "A minimalistic Pomodoro study timer designed to help you focus, track study habits, and boost motivation through a unique reward system.",
-    images: ["/favicon/android-chrome-512x512.png"],
+    images: [withBasePath("/favicon/android-chrome-512x512.png")],
   },
-  manifest: "/favicon/site.webmanifest",
+  manifest: withBasePath("/favicon/site.webmanifest"),
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

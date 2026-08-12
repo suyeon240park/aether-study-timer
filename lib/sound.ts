@@ -1,8 +1,10 @@
+import { withBasePath } from "@/lib/site-paths";
+
 export class SoundPlayer {
     private static audioMap = new Map<string, HTMLAudioElement>();
   
     static play(soundName: string): Promise<void> {
-      const audio = new Audio(`/sounds/${soundName}`);
+      const audio = new Audio(withBasePath(`/sounds/${soundName}`));
       
       return new Promise((resolve) => {
         audio.addEventListener('ended', () => {
@@ -22,10 +24,9 @@ export class SoundPlayer {
     }
   
     static playOverlap(soundName: string): void {
-      const audio = new Audio(`/sounds/${soundName}`);
+      const audio = new Audio(withBasePath(`/sounds/${soundName}`));
       audio.play().catch(error => {
         console.error('Error playing overlapped sound:', error);
       });
     }
   }
-  

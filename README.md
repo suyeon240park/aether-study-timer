@@ -6,7 +6,7 @@ A study timer web app with Pomodoro support and analytics. Track your progress w
 
 - **Frontend:** Next.js, React, Tailwind CSS, shadcn/ui
 - **Backend:** Firebase (Authentication, Realtime Database, optional Cloud Functions)
-- **Hosting:** Firebase Hosting (with Next.js framework support)
+- **Hosting:** GitHub Pages for the static frontend, Firebase Hosting optional
 
 ## Prerequisites
 
@@ -20,7 +20,8 @@ A study timer web app with Pomodoro support and analytics. Track your progress w
 Create a `.env.local` in the project root with your Firebase config (from Firebase Console → Project settings → General → Your apps):
 
 ```env
-NEXT_PUBLIC_SITE_URL=https://aether-timer.com
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_BASE_PATH=
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 NEXT_PUBLIC_FIREBASE_DATABASE_URL=
@@ -94,6 +95,59 @@ cd functions && npm run serve
 ```
 
 ## Deploy
+
+### Deploy to GitHub Pages
+
+This repo includes `.github/workflows/github-pages.yml`, which builds a static
+Next.js export and deploys the `out` folder to GitHub Pages when you push to
+`main`.
+
+GitHub Pages only hosts the frontend. Firebase Authentication and Realtime
+Database stay in your existing Firebase project and continue to hold your data.
+
+#### One-time GitHub setup
+
+1. Push this repository to GitHub.
+2. In GitHub, open **Settings -> Pages**.
+3. Set **Build and deployment -> Source** to **GitHub Actions**.
+4. In **Settings -> Secrets and variables -> Actions -> Variables**, add:
+
+```text
+NEXT_PUBLIC_FIREBASE_API_KEY
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+NEXT_PUBLIC_FIREBASE_DATABASE_URL
+NEXT_PUBLIC_FIREBASE_PROJECT_ID
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+NEXT_PUBLIC_FIREBASE_APP_ID
+```
+
+Use the same values from your local `.env.local`.
+
+The workflow automatically sets:
+
+```text
+GITHUB_PAGES=true
+NEXT_PUBLIC_BASE_PATH=/<repository-name>
+NEXT_PUBLIC_SITE_URL=https://<github-username>.github.io/<repository-name>
+```
+
+#### One-time Firebase setup
+
+In Firebase Console, open **Authentication -> Settings -> Authorized domains**
+and add your GitHub Pages host:
+
+```text
+<github-username>.github.io
+```
+
+Do not include `https://` or the repository path in this Firebase field.
+
+After the workflow finishes, your app will be available at:
+
+```text
+https://<github-username>.github.io/<repository-name>/
+```
 
 ### One-time setup
 

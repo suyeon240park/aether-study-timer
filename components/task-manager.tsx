@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { withBasePath } from "@/lib/site-paths"
 
 // Define the Task interface
 interface Task {
@@ -87,7 +88,7 @@ export default function TaskManager() {
       tasks.map((task) => {
         if (task.id === id) {
           // Play sound when task is marked as complete
-          const audio = new Audio("/sounds/task-complete.mp3")
+          const audio = new Audio(withBasePath("/sounds/task-complete.mp3"))
           audio.volume = 0.5
           audio.play().catch((err) => console.error("Error playing sound:", err))
 

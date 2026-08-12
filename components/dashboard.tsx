@@ -31,6 +31,7 @@ import { auth, database } from "@/lib/firebase"
 import { ref, remove } from "firebase/database"
 import { deleteUser } from "firebase/auth"
 import { useTimerWorker } from "@/hooks/use-timer-worker"
+import { withBasePath } from "@/lib/site-paths"
 
 // Add these types at the top of the file
 type TimerType = "default" | "pomodoro";
@@ -167,9 +168,9 @@ export default function Dashboard() {
     const handleFirstInteraction = () => {
       // Initialize audio context and preload sounds
       initAudioContext();
-      preloadAudio('/sounds/session-end.mp3');
-      preloadAudio('/sounds/break-end.mp3');
-      preloadAudio('/sounds/task-complete.mp3');
+      preloadAudio(withBasePath("/sounds/session-end.mp3"));
+      preloadAudio(withBasePath("/sounds/break-end.mp3"));
+      preloadAudio(withBasePath("/sounds/task-complete.mp3"));
       
       // Remove listeners after first interaction
       document.removeEventListener('click', handleFirstInteraction);
@@ -286,7 +287,7 @@ export default function Dashboard() {
   const handleSessionComplete = async (minutes: number, skipSound: boolean = false) => {
     // Play session end sound (only for countdown timer, Pomodoro plays its own)
     if (!skipSound) {
-      playSound("/sounds/session-end.mp3");
+      playSound(withBasePath("/sounds/session-end.mp3"));
     }
 
     // Store session data to database
@@ -344,9 +345,9 @@ export default function Dashboard() {
     
     // Play different sounds for focus and break sessions
     if (pomodoroSession.isBreak) {
-      playSound("/sounds/break-end.mp3");
+      playSound(withBasePath("/sounds/break-end.mp3"));
     } else {
-      playSound("/sounds/session-end.mp3");
+      playSound(withBasePath("/sounds/session-end.mp3"));
       
       // Only store focus sessions (skip sound since we already played it)
       await handleSessionComplete(minutes, true);

@@ -5,8 +5,19 @@ try {
   // ignore error
 }
 
+const isGitHubPages = process.env.GITHUB_PAGES === 'true'
+const configuredBasePath = process.env.NEXT_PUBLIC_BASE_PATH?.replace(/\/$/, '') ?? ''
+const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')[1]
+const githubPagesBasePath = isGitHubPages
+  ? configuredBasePath || (repositoryName ? `/${repositoryName}` : '')
+  : ''
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: isGitHubPages ? 'export' : undefined,
+  trailingSlash: isGitHubPages ? true : undefined,
+  basePath: githubPagesBasePath || undefined,
+  assetPrefix: githubPagesBasePath ? `${githubPagesBasePath}/` : undefined,
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -17,36 +28,40 @@ const nextConfig = {
   turbopack: {
     root: process.cwd(),
   },
-  // Security headers
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN',
-          },
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()',
-          },
-        ],
-      },
-    ];
-  },
+  ...(isGitHubPages
+    ? {}
+    : {
+        // Security headers
+        async headers() {
+          return [
+            {
+              source: '/(.*)',
+              headers: [
+                {
+                  key: 'X-Content-Type-Options',
+                  value: 'nosniff',
+                },
+                {
+                  key: 'X-Frame-Options',
+                  value: 'SAMEORIGIN',
+                },
+                {
+                  key: 'X-XSS-Protection',
+                  value: '1; mode=block',
+                },
+                {
+                  key: 'Referrer-Policy',
+                  value: 'strict-origin-when-cross-origin',
+                },
+                {
+                  key: 'Permissions-Policy',
+                  value: 'camera=(), microphone=(), geolocation=()',
+                },
+              ],
+            },
+          ];
+        },
+      }),
 }
 
 mergeConfig(nextConfig, userConfig)
