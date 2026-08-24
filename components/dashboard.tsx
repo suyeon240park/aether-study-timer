@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Settings, LogOut, LogIn, Music, AlertTriangle, Lock, Youtube, ChevronDown, Palette, Maximize, Minimize } from "lucide-react"
+import { BarChart3, Settings, LogOut, LogIn, ChevronDown, Palette, Maximize, Minimize } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useTheme } from "next-themes"
 import Timer from "@/components/timer"
@@ -32,23 +32,7 @@ import { ref, remove } from "firebase/database"
 import { deleteUser } from "firebase/auth"
 import { useTimerWorker } from "@/hooks/use-timer-worker"
 import { withBasePath } from "@/lib/site-paths"
-
-// Add these types at the top of the file
-type TimerType = "default" | "pomodoro";
-type PomodoroSettings = {
-  focusTime: number;
-  shortBreakTime: number;
-  longBreakTime: number;
-  breakInterval: number;
-};
-
-// Add default settings constant
-const DEFAULT_POMODORO_SETTINGS: PomodoroSettings = {
-  focusTime: 25,
-  shortBreakTime: 5,
-  longBreakTime: 30,
-  breakInterval: 4,
-};
+import type { TimerType, PomodoroSettings } from "@/types/study"
 
 // Audio context for reliable sound playback
 let audioContext: AudioContext | null = null;
@@ -116,7 +100,7 @@ const TimerTypeButton = ({ type, active, onClick }: { type: TimerType; active: b
         : "bg-transparent hover:bg-muted"
     )}
   >
-    {type === "default" ? "Countdown Timer" : "Pomodoro Timer"}
+    {type === "stopwatch" ? "Stopwatch Timer" : "Pomodoro Timer"}
   </button>
 );
 
@@ -130,7 +114,7 @@ const THEMES = [
 ];
 
 export default function Dashboard() {
-  const { studyData, addSession, setGoal, dailyGoal, syncWithFirebase } = useStudyData();
+  const { studyData, addSession, setGoal, dailyGoal } = useStudyData();
   const { user, signOut } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const router = useRouter();
@@ -203,17 +187,18 @@ export default function Dashboard() {
   const { startTimer: startWorkerTimer, stopTimer: stopWorkerTimer, isSupported: isWorkerSupported } = useTimerWorker();
 
   // Timer state
-  const [timerMinutes, setTimerMinutes] = useState(25);
+  const [timerMinutes, setTimerMinutes] = useState(0);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
   const [timerElapsedTime, setTimerElapsedTime] = useState(0);
-  const [timerInitialTime, setTimerInitialTime] = useState({ minutes: 25, seconds: 0 });
-  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  const [timerInitialTime, setTimerInitialTime] = useState({ minutes: 0, seconds: 0 });
   const [timerRestartKey, setTimerRestartKey] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerEndTimeRef = useRef<number | null>(null);
+  const stopwatchStartedAtRef = useRef<number | null>(null);
+  const stopwatchElapsedSecondsRef = useRef(0);
   const timerRef = useRef<HTMLDivElement>(null);
 
   const [pomodoroSession, setPomodoroSession] = useState({
@@ -231,14 +216,40 @@ export default function Dashboard() {
     handlePomodoroSessionComplete: (minutes: number) => Promise<void>;
   } | null>(null);
 
+  const setStopwatchDisplay = (elapsedSeconds: number) => {
+    setTimerElapsedTime(elapsedSeconds);
+    setTimerMinutes(Math.floor(elapsedSeconds / 60));
+    setTimerSeconds(elapsedSeconds % 60);
+  };
+
+  const getStopwatchElapsedSeconds = () => {
+    const activeSeconds = stopwatchStartedAtRef.current
+      ? Math.floor((Date.now() - stopwatchStartedAtRef.current) / 1000)
+      : 0;
+
+    return stopwatchElapsedSecondsRef.current + activeSeconds;
+  };
+
   // Timer handlers
   const handleTimerStart = () => {
     // Don't allow start during transition
     if (isTransitioning) return;
+
+    if (timerType === "stopwatch") {
+      if (!isTimerActive) {
+        stopwatchElapsedSecondsRef.current = 0;
+        setStopwatchDisplay(0);
+      }
+
+      stopwatchStartedAtRef.current = Date.now();
+      setIsTimerActive(true);
+      setIsTimerPaused(false);
+      setTimerRestartKey(prevKey => prevKey + 1);
+      return;
+    }
     
     if (!isTimerActive) {
       // Only reset elapsed time and session start time for new sessions
-      setSessionStartTime(Date.now());
       setTimerElapsedTime(0);
       timerEndTimeRef.current = null;
     } else if (isTimerPaused) {
@@ -254,6 +265,23 @@ export default function Dashboard() {
   const handleTimerPause = () => {
     // Don't allow pause during transition
     if (isTransitioning) return;
+
+    if (timerType === "stopwatch") {
+      if (isTimerActive && !isTimerPaused) {
+        const elapsedSeconds = getStopwatchElapsedSeconds();
+        stopwatchElapsedSecondsRef.current = elapsedSeconds;
+        stopwatchStartedAtRef.current = null;
+        setStopwatchDisplay(elapsedSeconds);
+      }
+
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+
+      setIsTimerPaused(true);
+      return;
+    }
     
     // Stop worker and interval timers
     stopWorkerTimer();
@@ -276,22 +304,52 @@ export default function Dashboard() {
     }
     setIsTimerActive(false);
     setIsTimerPaused(false);
+    stopwatchStartedAtRef.current = null;
+    stopwatchElapsedSecondsRef.current = 0;
+
+    if (timerType === "stopwatch") {
+      setTimerInitialTime({ minutes: 0, seconds: 0 });
+      setStopwatchDisplay(0);
+      timerEndTimeRef.current = null;
+      return;
+    }
+
     setTimerMinutes(timerInitialTime.minutes);
     setTimerSeconds(timerInitialTime.seconds);
     setTimerElapsedTime(0);
     timerEndTimeRef.current = null;
-    setSessionStartTime(null);
+  };
+
+  const handleTimerFinish = async () => {
+    if (isTransitioning || timerType !== "stopwatch") return;
+
+    const elapsedSeconds = getStopwatchElapsedSeconds();
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    stopwatchStartedAtRef.current = null;
+    stopwatchElapsedSecondsRef.current = 0;
+    setIsTimerActive(false);
+    setIsTimerPaused(false);
+    setStopwatchDisplay(0);
+
+    if (elapsedSeconds > 0) {
+      const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
+      await handleSessionComplete(elapsedMinutes);
+    }
   };
 
   // Handle session completion (skipSound is used when called from Pomodoro handler which plays its own sound)
   const handleSessionComplete = async (minutes: number, skipSound: boolean = false) => {
-    // Play session end sound (only for countdown timer, Pomodoro plays its own)
+    // Play session end sound (Pomodoro plays its own)
     if (!skipSound) {
       playSound(withBasePath("/sounds/session-end.mp3"));
     }
 
     // Store session data to database
-    addSession(minutes);
+    await addSession(minutes);
   };
 
   // Handle opening statistics when not logged in
@@ -429,7 +487,6 @@ export default function Dashboard() {
     setTimerInitialTime(newState.initialTime);
     setTimerElapsedTime(0);
     setPomodoroSession(newState.session);
-    setSessionStartTime(Date.now());
     
     // Set up timer references and state
     timerEndTimeRef.current = endTime;
@@ -474,14 +531,55 @@ export default function Dashboard() {
         totalSessions: pomodoroSettings.breakInterval * 2,
       });
     } else {
-      setTimerMinutes(25);
+      setTimerMinutes(0);
       setTimerSeconds(0);
-      setTimerInitialTime({ minutes: 25, seconds: 0 });
+      setTimerInitialTime({ minutes: 0, seconds: 0 });
+      setTimerElapsedTime(0);
+      stopwatchStartedAtRef.current = null;
+      stopwatchElapsedSecondsRef.current = 0;
     }
   }, [timerType, pomodoroSettings.breakInterval]);
 
-  // Timer effect - uses Web Worker for accurate background timing
+  // Stopwatch effect - displays elapsed wall time while excluding paused time
   useEffect(() => {
+    if (timerType !== "stopwatch" || !isTimerActive || isTimerPaused) {
+      return;
+    }
+
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    const updateStopwatchDisplay = () => {
+      const activeSeconds = stopwatchStartedAtRef.current
+        ? Math.floor((Date.now() - stopwatchStartedAtRef.current) / 1000)
+        : 0;
+      const elapsedSeconds = stopwatchElapsedSecondsRef.current + activeSeconds;
+
+      setTimerElapsedTime(elapsedSeconds);
+      setTimerMinutes(Math.floor(elapsedSeconds / 60));
+      setTimerSeconds(elapsedSeconds % 60);
+    };
+
+    updateStopwatchDisplay();
+    timerIntervalRef.current = setInterval(updateStopwatchDisplay, 1000);
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, [timerType, isTimerActive, isTimerPaused, timerRestartKey]);
+
+  // Pomodoro timer effect - uses Web Worker for accurate background timing
+  useEffect(() => {
+    if (timerType === "stopwatch") {
+      stopWorkerTimer();
+      return;
+    }
+
     // Skip setup during transition
     if (isTransitioning) {
       return;
@@ -528,12 +626,7 @@ export default function Dashboard() {
             
             // Use ref to get latest handlers to avoid stale closures
             if (completionHandlerRef.current) {
-              if (timerType === "pomodoro") {
-                completionHandlerRef.current.handlePomodoroSessionComplete(totalMinutes);
-              } else {
-                setIsTimerActive(false);
-                completionHandlerRef.current.handleSessionComplete(totalMinutes);
-              }
+              completionHandlerRef.current.handlePomodoroSessionComplete(totalMinutes);
             }
           }
         });
@@ -557,15 +650,10 @@ export default function Dashboard() {
               clearInterval(timerIntervalRef.current as NodeJS.Timeout);
               timerIntervalRef.current = null;
               timerEndTimeRef.current = null;
-              const totalMinutes = Math.floor(newElapsedTime / 60);
+              const totalMinutes = Math.floor(totalInitialSeconds / 60);
               
               if (completionHandlerRef.current) {
-                if (timerType === "pomodoro") {
-                  completionHandlerRef.current.handlePomodoroSessionComplete(totalMinutes);
-                } else {
-                  setIsTimerActive(false);
-                  completionHandlerRef.current.handleSessionComplete(totalMinutes);
-                }
+                completionHandlerRef.current.handlePomodoroSessionComplete(totalMinutes);
               }
             }
           }, 100);
@@ -592,6 +680,10 @@ export default function Dashboard() {
 
   // Handle visibility change - check if timer completed while tab was in background
   useEffect(() => {
+    if (timerType !== "pomodoro") {
+      return;
+    }
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && timerEndTimeRef.current) {
         const now = Date.now();
@@ -621,12 +713,7 @@ export default function Dashboard() {
           
           // Trigger completion using ref to get latest handlers
           if (completionHandlerRef.current) {
-            if (timerType === "pomodoro") {
-              completionHandlerRef.current.handlePomodoroSessionComplete(totalMinutes);
-            } else {
-              setIsTimerActive(false);
-              completionHandlerRef.current.handleSessionComplete(totalMinutes);
-            }
+            completionHandlerRef.current.handlePomodoroSessionComplete(totalMinutes);
           }
         } else if (!isTimerPaused && !isTransitioning) {
           // Update timer display to current remaining time (only if not paused)
@@ -803,9 +890,9 @@ export default function Dashboard() {
                     <h4 className="text-sm font-medium mb-4">Timer Type</h4>
                     <div className="flex border rounded-md overflow-hidden">
                       <TimerTypeButton
-                        type="default"
-                        active={timerType === "default"}
-                        onClick={() => setTimerType("default")}
+                        type="stopwatch"
+                        active={timerType === "stopwatch"}
+                        onClick={() => setTimerType("stopwatch")}
                       />
                       <TimerTypeButton
                         type="pomodoro"
@@ -968,7 +1055,6 @@ export default function Dashboard() {
       <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-4 overflow-y-auto">
         <div ref={timerRef}>
           <Timer
-            onSessionComplete={timerType === "pomodoro" ? handlePomodoroSessionComplete : handleSessionComplete}
             minutes={timerMinutes}
             seconds={timerSeconds}
             isActive={isTimerActive}
@@ -978,11 +1064,7 @@ export default function Dashboard() {
             onStart={handleTimerStart}
             onPause={handleTimerPause}
             onReset={handleTimerReset}
-            onTimeChange={(minutes, seconds) => {
-              setTimerMinutes(minutes);
-              setTimerSeconds(seconds);
-              setTimerInitialTime({ minutes, seconds });
-            }}
+            onFinish={handleTimerFinish}
             timerType={timerType}
             pomodoroSession={timerType === "pomodoro" ? pomodoroSession : undefined}
             onSkipBreak={handleSkipBreak}

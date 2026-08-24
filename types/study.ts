@@ -16,7 +16,7 @@ export type StudyData = {
   date?: { [key: string]: DayData };
 };
 
-export type TimerType = "default" | "pomodoro";
+export type TimerType = "stopwatch" | "pomodoro";
 
 export type PomodoroSettings = {
   focusTime: number;

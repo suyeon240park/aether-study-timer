@@ -10,7 +10,7 @@ const DEFAULT_POMODORO_SETTINGS = {
 
 export function usePreferences() {
   const [isLoading, setIsLoading] = useState(true);
-  const [timerType, setTimerType] = useState<TimerType>("default");
+  const [timerType, setTimerType] = useState<TimerType>("stopwatch");
   const [pomodoroSettings, setPomodoroSettings] = useState<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
   const [isMusicEnabled, setIsMusicEnabled] = useState(true);
 
@@ -20,7 +20,7 @@ export function usePreferences() {
       try {
         // Load timer type
         const savedTimerType = localStorage.getItem("timer-type");
-        if (savedTimerType === "default" || savedTimerType === "pomodoro") {
+        if (savedTimerType === "stopwatch" || savedTimerType === "pomodoro") {
           setTimerType(savedTimerType);
         }
 
@@ -86,4 +86,4 @@ export function usePreferences() {
     isMusicEnabled,
     setIsMusicEnabled,
   };
-} 
+}

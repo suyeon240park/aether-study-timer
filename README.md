@@ -1,6 +1,6 @@
 # Aether Study Timer
 
-A study timer web app with Pomodoro support and analytics. Track your progress with charts and heatmaps, and use themes and music to stay focused.
+A stopwatch-based study timer web app with Pomodoro support and analytics. Track your progress with charts and heatmaps, and use themes and music to stay focused.
 
 ## Tech stack
 

@@ -8,12 +8,14 @@ import { getSiteUrl, withBasePath } from "@/lib/site-paths"
 
 const inter = Inter({ subsets: ["latin"] })
 const siteUrl = getSiteUrl()
+const description =
+  "A minimalistic study timer designed to help you focus, track study habits, and boost motivation through a unique reward system."
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,
   applicationName: "Aether Study Timer",
   title: "Aether Study Timer",
-  description: "A minimalistic Pomodoro study timer designed to help you focus, track study habits, and boost motivation through a unique reward system.",
+  description,
   alternates: {
     canonical: "/",
   },
@@ -32,7 +34,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Aether Study Timer",
-    description: "A minimalistic Pomodoro study timer designed to help you focus, track study habits, and boost motivation through a unique reward system.",
+    description,
     url: "/",
     siteName: "Aether Study Timer",
     images: [
@@ -47,7 +49,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Aether Study Timer",
-    description: "A minimalistic Pomodoro study timer designed to help you focus, track study habits, and boost motivation through a unique reward system.",
+    description,
     images: [withBasePath("/favicon/android-chrome-512x512.png")],
   },
   manifest: withBasePath("/favicon/site.webmanifest"),
