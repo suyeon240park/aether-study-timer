@@ -1,11 +1,12 @@
 {
-  "name": "my-v0-project",
+  "name": "aether-study-timer",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
