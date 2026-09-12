@@ -1,23 +1,24 @@
 # Aether Study Timer
 
-A stopwatch-based study timer web app with Pomodoro support and analytics. Track your progress with charts and heatmaps, and use themes and music to stay focused.
+Aether is a stopwatch- and Pomodoro-based study timer with task tracking, themes, focus music, Firebase authentication, persistent study data, and analytics such as charts and heatmaps.
 
-## Tech stack
+## Tech Stack
 
-- **Frontend:** Next.js, React, Tailwind CSS, shadcn/ui
-- **Backend:** Firebase (Authentication, Realtime Database, optional Cloud Functions)
-- **Hosting:** GitHub Pages for the static frontend, Firebase Hosting optional
+- **Frontend:** Next.js, React, TypeScript, Tailwind CSS, shadcn/ui
+- **Data/Auth:** Firebase Authentication and Realtime Database
+- **Optional backend:** Firebase Cloud Functions
+- **Hosting:** GitHub Pages or Firebase Hosting
 
 ## Prerequisites
 
-- **Node.js** 18+ (22 for Cloud Functions)
-- **pnpm** (or npm / yarn)
-- **Firebase CLI:** `npm install -g firebase-tools`
-- A [Firebase project](https://console.firebase.google.com/) with Authentication and Realtime Database enabled
+- **Node.js 22** recommended
+- **npm**, pnpm, or yarn
+- **Firebase CLI** for Firebase deployment/emulators
+- a Firebase project with Authentication and Realtime Database enabled
 
-## Environment variables
+## Environment Variables
 
-Create a `.env.local` in the project root with your Firebase config (from Firebase Console → Project settings → General → Your apps):
+Create `.env.local` in the project root:
 
 ```env
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
@@ -31,86 +32,64 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 ```
 
-## Run locally
+Firebase's browser configuration values are used by the client application. Database access is enforced separately by `database.rules.json`, which scopes each user's data to their authenticated Firebase UID.
+
+## Run Locally
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Start development server (http://localhost:3000)
-pnpm dev
+npm install
+npm run dev
 ```
 
-## Build & production
+Open `http://localhost:3000`.
 
-> **Note for Windows users**: Use `npm` for building due to a known pnpm build hang issue on Windows.
+## Quality Checks
+
+Run the root unit tests with:
 
 ```bash
-# Build for production (use npm on Windows)
-npm run build
-
-# Or with pnpm (may hang on Windows)
-pnpm build
-
-# Run production build locally
-npm start
-# or
-pnpm start
+npm test
 ```
 
-## Lint
+The tests use Node's built-in test runner and currently cover base-path normalization used by GitHub Pages deployment. The GitHub Pages workflow runs these tests before building and deploying the app.
+
+Firebase Cloud Functions have a separate lint command:
 
 ```bash
+cd functions
+npm install
 npm run lint
-# or
-pnpm lint
 ```
 
-## Test
+There is intentionally no misleading root `npm run lint` command until a root lint configuration is added.
 
-- **App:** No test script is configured yet. You can add a test runner (e.g. Jest, Vitest) and wire it to `package.json` scripts.
-- **Cloud Functions:** From the `functions` folder:
-  ```bash
-  cd functions
-  npm install
-  npm run lint
-  ```
-  Use `firebase-functions-test` for unit tests if you add them.
+## Build
 
-## Firebase emulators (optional)
+```bash
+npm run build
+npm start
+```
 
-Run Auth, Database, Hosting, and the Emulator UI locally:
+The package is named `aether-study-timer`. The `"private": true` field in `package.json` prevents accidental publication to npm; it does **not** mean this GitHub repository is private.
+
+## Firebase Emulators
 
 ```bash
 firebase emulators:start
 ```
 
-- Hosting preview: http://localhost:5000
-- Emulator UI: http://localhost:4000 (or the port shown in the output)
+The emulator suite can provide local Auth, Realtime Database, Hosting, Functions, and Emulator UI services depending on your Firebase configuration.
 
-To run only functions:
+## GitHub Pages Deployment
 
-```bash
-cd functions && npm run serve
-```
+`.github/workflows/github-pages.yml` runs on pushes to `main` and:
 
-## Deploy
+1. installs dependencies with `npm ci`;
+2. runs `npm test`;
+3. builds the static Next.js export;
+4. uploads and deploys the generated `out/` directory with GitHub Pages.
 
-### Deploy to GitHub Pages
-
-This repo includes `.github/workflows/github-pages.yml`, which builds a static
-Next.js export and deploys the `out` folder to GitHub Pages when you push to
-`main`.
-
-GitHub Pages only hosts the frontend. Firebase Authentication and Realtime
-Database stay in your existing Firebase project and continue to hold your data.
-
-#### One-time GitHub setup
-
-1. Push this repository to GitHub.
-2. In GitHub, open **Settings -> Pages**.
-3. Set **Build and deployment -> Source** to **GitHub Actions**.
-4. In **Settings -> Secrets and variables -> Actions -> Variables**, add:
+Add these repository variables under **Settings → Secrets and variables → Actions → Variables**:
 
 ```text
 NEXT_PUBLIC_FIREBASE_API_KEY
@@ -122,9 +101,7 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 NEXT_PUBLIC_FIREBASE_APP_ID
 ```
 
-Use the same values from your local `.env.local`.
-
-The workflow automatically sets:
+The workflow supplies:
 
 ```text
 GITHUB_PAGES=true
@@ -132,71 +109,44 @@ NEXT_PUBLIC_BASE_PATH=/<repository-name>
 NEXT_PUBLIC_SITE_URL=https://<github-username>.github.io/<repository-name>
 ```
 
-#### One-time Firebase setup
+For Firebase Authentication, add `<github-username>.github.io` as an authorized domain in Firebase Console.
 
-In Firebase Console, open **Authentication -> Settings -> Authorized domains**
-and add your GitHub Pages host:
+Generated Firebase deployment output under `.firebase/` is intentionally ignored and should not be committed.
 
-```text
-<github-username>.github.io
-```
-
-Do not include `https://` or the repository path in this Firebase field.
-
-After the workflow finishes, your app will be available at:
-
-```text
-https://<github-username>.github.io/<repository-name>/
-```
-
-### One-time setup
-
-1. Log in: `firebase login`
-2. Select project: `firebase use aether-study-timer` (or your project ID)
-3. Ensure `.env.local` (or CI secrets) has the same Firebase env vars for build-time.
-
-### Deploy to Firebase
-
-Deploy hosting (Next.js app) and optionally functions and database rules:
+## Firebase Deployment
 
 ```bash
-# Deploy hosting only (Next.js app)
-firebase deploy --only hosting
-
-# Deploy everything (hosting + functions + database rules)
+firebase login
+firebase use aether-study-timer
 firebase deploy
+```
 
-# Deploy only Cloud Functions
+Useful scoped deployments include:
+
+```bash
+firebase deploy --only hosting
 firebase deploy --only functions
-
-# Deploy only database rules
 firebase deploy --only database
 ```
 
-Firebase Hosting is configured with **frameworksBackend**, so the Next.js app is built and served by Firebase (no manual `next build` upload).
+## Project Structure
 
-### CI/CD (GitHub Actions)
+| Path | Purpose |
+|---|---|
+| `app/` | Next.js App Router pages |
+| `components/` | UI and feature components |
+| `contexts/` | React contexts such as authentication |
+| `hooks/` | Study data, timer worker, and preference hooks |
+| `lib/` | Firebase configuration and shared utilities |
+| `types/` | Shared TypeScript types |
+| `functions/` | Firebase Cloud Functions |
+| `tests/` | Root unit tests |
+| `public/` | Static assets and sounds |
 
-The repo includes a workflow that on **pull requests**:
+## Repository Hygiene
 
-1. Runs `npm run build`
-2. Deploys a preview to Firebase Hosting and comments on the PR
-
-**Required secret:** `FIREBASE_SERVICE_ACCOUNT_AETHER_STUDY_TIMER` (Firebase service account JSON for the project).
-
-## Project structure (overview)
-
-| Path            | Description                    |
-|-----------------|--------------------------------|
-| `app/`          | Next.js App Router pages       |
-| `components/`   | React components & UI (shadcn) |
-| `contexts/`     | Auth and other React contexts  |
-| `hooks/`        | Custom hooks (e.g. study data) |
-| `lib/`          | Firebase, utils, sound         |
-| `types/`        | TypeScript types               |
-| `functions/`    | Firebase Cloud Functions       |
-| `public/`       | Static assets and sounds       |
+The repository ignores local secrets, Next.js build output, and Firebase deployment artifacts. Do not commit `.env.local`, Firebase service-account credentials, `.next/`, `out/`, or `.firebase/`.
 
 ## License
 
-Private project.
+No open-source license is currently provided. The repository is public for portfolio and demonstration purposes; public visibility should not be interpreted as permission to redistribute or relicense the project.
